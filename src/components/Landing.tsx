@@ -240,7 +240,7 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
             <img src={brandLogo} alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
             <span className="text-2xl font-black tracking-tight text-zara">ZARA</span>
           </div>
-          <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-paper/50">AI structured interviews · global candidates · demo environment</p>
+          <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-paper/50">© 2025 Indica Software All rights reserved. Indica Software AI structured interviews · GLOBAL ENVIRONMENT</p>
         </div>
       </footer>
     </div>

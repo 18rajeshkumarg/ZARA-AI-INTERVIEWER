@@ -21,6 +21,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins,
+    base: mode === 'production' ? '/ZARA-AI-INTERVIEWER/' : '/',
     envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     define: processEnvDefines,
   };

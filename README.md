@@ -154,3 +154,11 @@ export default defineConfig([
     ## Repository
 
     GitHub: [18rajeshkumarg/ZARA-AI-INTERVIEWER](https://github.com/18rajeshkumarg/ZARA-AI-INTERVIEWER)
+
+    ## Live Preview
+
+    The latest `main` branch is published through GitHub Pages:
+
+    [Open the live ZARA AI Interviewer demo](https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/)
+
+    The deployment is automated by [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` installs the locked dependencies, builds the Vite site, and publishes the generated `dist/` directory to GitHub Pages.

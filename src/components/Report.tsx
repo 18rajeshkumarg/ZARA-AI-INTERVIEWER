@@ -79,6 +79,7 @@ export default function Report({
       <header className="border-b border-ink/10 bg-paper/85 backdrop-blur sticky top-0 z-40">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4">
           <div className="flex items-baseline gap-2">
+            <img src="/indicasoftware-logo.svg" alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
             <span className="text-2xl font-black tracking-tight text-zara">ZARA</span>
             <span className="font-mono2 text-[10px] uppercase tracking-[0.24em] text-ink/55">Interview report</span>
           </div>

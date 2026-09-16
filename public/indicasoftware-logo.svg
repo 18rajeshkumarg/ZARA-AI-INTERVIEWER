@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+  <title id="title">Indicasoftware The TechHub Platform</title>
+  <desc id="desc">Indicasoftware logo with the Indian flag and a red lightbulb person mark.</desc>
+  <rect width="720" height="720" rx="88" fill="#fff"/>
+  <rect x="25" y="25" width="670" height="670" rx="72" fill="none" stroke="#e8e8e8" stroke-width="5"/>
+  <g transform="translate(245 48)">
+    <path fill="#f58220" d="M0 0h220v47c-35-2-55 14-90 2C93 36 63 52 0 47z"/>
+    <path fill="#fff" d="M0 47h220v54c-48-4-67 14-106 2C76 91 45 108 0 101z"/>
+    <path fill="#138808" d="M0 101h220v48c-44 0-70 14-106 2C73 140 42 154 0 149z"/>
+    <circle cx="111" cy="91" r="18" fill="none" stroke="#1a3b78" stroke-width="5"/>
+    <circle cx="111" cy="91" r="4" fill="#1a3b78"/>
+  </g>
+  <text x="360" y="205" text-anchor="middle" fill="#193c79" font-family="Georgia, serif" font-size="60" font-weight="700">Indicasoftware</text>
+  <g transform="translate(360 370)">
+    <path fill="#d71920" d="M0-100c-63 0-91 82-48 126 15 15 22 28 24 47h48c3-19 10-32 24-47C91-18 63-100 0-100z"/>
+    <path fill="#fff" d="M18-75c24 18 29 45 20 67-4-30-14-47-28-59z"/>
+    <path fill="#d71920" d="M-29 75h58v15h-58zm7 22h44v14h-44zM-48 135h96l-25 27H-23z"/>
+    <path fill="#d71920" d="M-110 240l37-124 50-20v-12h46v12l50 20 37 124z"/>
+    <path fill="#fff" d="M-14 116h28l14 38-28 34-28-34z"/>
+    <path fill="#d71920" d="M-9 145h18l8 83H-17z"/>
+    <circle cx="-20" cy="-6" r="8" fill="#fff"/><circle cx="20" cy="-6" r="8" fill="#fff"/>
+    <path d="M-20-6v53M20-6v53" stroke="#fff" stroke-width="5"/>
+  </g>
+  <text x="360" y="675" text-anchor="middle" fill="#193c79" font-family="Arial, sans-serif" font-size="23" font-weight="700">Indica Software The TechHub Platform</text>
+</svg>

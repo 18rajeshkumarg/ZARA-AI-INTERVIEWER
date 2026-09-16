@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Mic, Volume2, SkipForward, X } from 'lucide-react'
 import { roles, candidates, type ScoreMap } from '../lib/interview'
 
+const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
+
 export interface AnswerRecord {
   q: string
   text: string
@@ -96,7 +98,7 @@ export default function InterviewRoom({
       <header className="border-b border-white/10 bg-[#0d0d10]/90 backdrop-blur sticky top-0 z-30">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <img src="/indicasoftware-logo.svg" alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
+            <img src={brandLogo} alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
             <span className="text-xl font-black tracking-tight text-zara">ZARA</span>
             <div className="h-5 w-px bg-white/15" />
             <div className="min-w-0">

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Globe2, Mic, BrainCircuit, LineChart, ChevronDown } from 'lucide-react'
 import { candidates, roles } from '../lib/interview'
 
+const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
+
 const faqs = [
   {
     q: 'How does the AI interviewer work?',
@@ -59,7 +61,7 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
       <header className="sticky top-0 z-40 border-b border-ink/10 bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
-            <img src="/indicasoftware-logo.svg" alt="Indicasoftware The TechHub Platform" className="brand-logo-small brand-logo" />
+            <img src={brandLogo} alt="Indicasoftware The TechHub Platform" className="brand-logo-small brand-logo" />
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black tracking-tight text-zara">ZARA</span>
               <span className="font-mono2 text-[11px] uppercase tracking-[0.28em] text-ink/60">AI Interview</span>
@@ -235,7 +237,7 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
       <footer className="bg-ink text-paper">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-8">
           <div className="flex items-center gap-3">
-            <img src="/indicasoftware-logo.svg" alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
+            <img src={brandLogo} alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
             <span className="text-2xl font-black tracking-tight text-zara">ZARA</span>
           </div>
           <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-paper/50">AI structured interviews · global candidates · demo environment</p>

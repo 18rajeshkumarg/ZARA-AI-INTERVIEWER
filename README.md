@@ -157,8 +157,10 @@ export default defineConfig([
 
     ## Live Preview
 
-    The latest `main` branch is published through GitHub Pages:
+    After GitHub Pages is enabled for the repository, the live preview will be available at:
 
-    [Open the live ZARA AI Interviewer demo](https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/)
+    [Open the ZARA AI Interviewer demo](https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/)
 
     The deployment is automated by [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` installs the locked dependencies, builds the Vite site, and publishes the generated `dist/` directory to GitHub Pages.
+
+    To enable it, open the repository's **Settings → Pages**, select **GitHub Actions** as the source, and rerun the `Deploy to GitHub Pages` workflow. The first deployment currently cannot complete until this repository-level setting is enabled by an authenticated repository owner.

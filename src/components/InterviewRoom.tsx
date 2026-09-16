@@ -31,7 +31,6 @@ export default function InterviewRoom({
   const [qi, setQi] = useState(0)
   const [scores, setScores] = useState<ScoreMap>({ structure: 0, vocab: 0, fluency: 0, confidence: 0 })
   const [history, setHistory] = useState<AnswerRecord[]>([])
-  const [pick, setPick] = useState<number | null>(null)
   const [wave, setWave] = useState<number[]>(() => Array.from({ length: 24 }, () => 8))
   const timer = useRef<number | null>(null)
   const doneRef = useRef(false)
@@ -49,7 +48,6 @@ export default function InterviewRoom({
   // Advance ask -> answer phase (model asks question shortly after)
   useEffect(() => {
     if (phase !== 'ask') return
-    setPick(null)
     timer.current = window.setTimeout(() => setPhase('answer'), 900)
     return () => { if (timer.current) window.clearTimeout(timer.current) }
   }, [phase, qi])
@@ -66,7 +64,6 @@ export default function InterviewRoom({
       confidence: (s.confidence ?? 0) + (ans.scores.confidence ?? 0),
     }))
     setPhase('feedback')
-    setPick(ansIdx)
     doneRef.current = false
   }
 

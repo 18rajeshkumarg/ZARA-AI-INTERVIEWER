@@ -103,6 +103,17 @@ export default defineConfig([
     npm run lint
     ```
 
+    ### Verify the project
+
+    The project is checked with both commands before changes are published:
+
+    ```bash
+    npm run lint
+    npm run build
+    ```
+
+    The build runs TypeScript project checks and creates the production bundle in `dist/`.
+
     ## Project Structure
 
     ```text

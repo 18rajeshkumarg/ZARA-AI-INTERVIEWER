@@ -46,6 +46,26 @@ python human_detection.py
   general COCO detector (cars, phones, bags, …) instead.
 - `CONFIDENCE = 0.5` is the minimum score for a detection to be kept.
 
+## Interview session data (recorded by the web app)
+
+During a live interview the web app automatically records the session and
+saves the data into this folder (or downloads it if no folder was chosen):
+
+```
+human_detection_<round>_<role>_<timestamp>_camera_recording.webm  # camera video + candidate voice
+human_detection_<round>_<role>_<timestamp>_candidate_voice.webm   # voice-only track
+human_detection_<round>_<role>_<timestamp>_transcript.txt         # timestamped live transcript
+human_detection_<round>_<role>_<timestamp>_session.json           # metadata, scores, answers
+```
+
+These files can be re-analyzed with the same pipeline, for example:
+
+```bash
+# run human detection over a recorded interview video
+cd Human_Detection
+python human_detection.py video/human_detection_screening_frontend_<stamp>_camera_recording.webm
+```
+
 ## Relation to the web app
 
 The deployed site can't run Python/OpenCV in the browser, so the **live

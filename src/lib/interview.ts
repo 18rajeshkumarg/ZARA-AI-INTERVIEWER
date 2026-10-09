@@ -547,3 +547,80 @@ export const roles: RoleDef[] = [
     ],
   },
 ]
+
+// ---------------------------------------------------------------------------
+// Screening round — the short first interview every candidate takes before the
+// real (role-specific) interview. Same mechanics: ZARA reads each question and
+// its options aloud, the mic stays on, and every response is transcribed.
+// ---------------------------------------------------------------------------
+export const screeningQuestions: Question[] = [
+  {
+    q: 'Please introduce yourself and tell us why you are interested in this role.',
+    answers: [
+      {
+        text: 'I am a frontend engineer with five years of experience, currently focused on React and TypeScript. In my last role I led the rewrite of our design system, which cut feature delivery time by a third. I am interested in this role because your team ships product at scale, and that is exactly where I do my best work.',
+        feedback: 'Strong screening answer — present, past, achievement, and a clear reason for interest, delivered in a tight structure.',
+        scores: { structure: 20, vocab: 17, fluency: 19, confidence: 19 },
+        kw: ['React', 'TypeScript'],
+      },
+      {
+        text: 'I am a hardworking person looking for a good opportunity. I like learning new things and I think your company is nice, so I applied.',
+        feedback: 'Too generic — it gives the panel nothing to remember. Add one concrete achievement and one specific reason for this role.',
+        scores: { structure: 8, vocab: 6, fluency: 10, confidence: 9 },
+        kw: [],
+      },
+      {
+        text: 'Well, I have worked at a couple of companies, done mostly frontend things, and now I am exploring what is out there.',
+        feedback: 'Vague and passive — explore with intent. Name your specialty, one result, and why this role fits the next step.',
+        scores: { structure: 10, vocab: 8, fluency: 12, confidence: 9 },
+        kw: [],
+      },
+    ],
+  },
+  {
+    q: 'What is the biggest strength you would bring to this team, and can you give an example?',
+    answers: [
+      {
+        text: 'My biggest strength is turning ambiguous problems into shippable plans. For example, when our checkout flow stalled with a 12% drop-off, I framed the problem, ran a two-week experiment sprint, and we shipped a revised flow that recovered nine points of that drop-off.',
+        feedback: 'Excellent — you named the strength, showed it with a measurable story, and tied it to team impact.',
+        scores: { structure: 20, vocab: 18, fluency: 19, confidence: 20 },
+        kw: ['performance'],
+      },
+      {
+        text: 'I am a good team player and I get along with everyone. People usually enjoy working with me.',
+        feedback: 'Likeability is not a differentiator — pair the human skill with a moment where it changed an outcome.',
+        scores: { structure: 7, vocab: 5, fluency: 9, confidence: 8 },
+        kw: [],
+      },
+      {
+        text: 'I would say I learn quickly. Whenever something new comes up on a project, I pick it up in a few days and then help the rest of the team with it.',
+        feedback: 'A credible strength — strengthen it with one short example of what you learned and what it enabled.',
+        scores: { structure: 13, vocab: 10, fluency: 13, confidence: 12 },
+        kw: [],
+      },
+    ],
+  },
+  {
+    q: 'Describe a challenging situation you handled well. What did you learn from it?',
+    answers: [
+      {
+        text: 'Two weeks before launch our payment provider changed their API without notice. I froze new scope, split the team into migration and coverage work, and we wrote contract tests against the new spec. We shipped on time, and afterwards I added a provider-change checklist and sandbox monitoring so we would see this class of risk earlier.',
+        feedback: 'Outstanding screening answer — calm triage, clear delegation, and a durable lesson turned into process.',
+        scores: { structure: 20, vocab: 18, fluency: 19, confidence: 20 },
+        kw: ['testing'],
+      },
+      {
+        text: 'We once had a tight deadline, so everyone worked late and we pushed it out. It was stressful but we made it.',
+        feedback: 'Crunch is not a capability — describe the decisions you made, not only the hours everyone worked.',
+        scores: { structure: 8, vocab: 6, fluency: 10, confidence: 9 },
+        kw: [],
+      },
+      {
+        text: 'A colleague and I disagreed on an approach, so we talked it through with the tech lead and went with the lead\u2019s decision. It worked out fine in the end.',
+        feedback: 'Polite, but you were a passenger — show how you built the case, evaluated trade-offs, and owned part of the outcome.',
+        scores: { structure: 12, vocab: 9, fluency: 12, confidence: 11 },
+        kw: [],
+      },
+    ],
+  },
+]

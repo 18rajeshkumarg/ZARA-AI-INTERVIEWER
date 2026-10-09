@@ -1,49 +1,82 @@
 import { useState } from 'react'
 import Landing from './components/Landing'
 import InterviewRoom, { type AnswerRecord } from './components/InterviewRoom'
+import FinalRound from './components/FinalRound'
 import Report from './components/Report'
 
-type Stage = 'landing' | 'interview' | 'report'
+// Flow: landing → screening round (online) → real interview (online)
+//       → final round is offline one-on-one → report.
+type Stage = 'landing' | 'screening' | 'final' | 'offline' | 'report'
 
 export default function App() {
   const [stage, setStage] = useState<Stage>('landing')
   const [roleIdx, setRoleIdx] = useState(0)
-  const [candIdx, setCandIdx] = useState(0)
   const [answers, setAnswers] = useState<AnswerRecord[]>([])
 
-  const start = (role: number, cand: number) => {
-    setRoleIdx(role)
-    setCandIdx(cand)
-    setAnswers([])
-    setStage('interview')
+  const scrollTop = () => {
     if (typeof window !== 'undefined') window.scrollTo(0, 0)
+  }
+
+  const start = (role: number) => {
+    setRoleIdx(role)
+    setAnswers([])
+    setStage('screening')
+    scrollTop()
   }
 
   const goHome = () => {
     setStage('landing')
-    if (typeof window !== 'undefined') window.scrollTo(0, 0)
+    setAnswers([])
+    scrollTop()
   }
 
   return (
     <>
-      {stage === 'landing' && <Landing onStart={start} onPick={(r, c) => start(r, c)} />}
-      {stage === 'interview' && (
+      {stage === 'landing' && <Landing onStart={start} />}
+
+      {stage === 'screening' && (
         <InterviewRoom
           roleIdx={roleIdx}
-          candIdx={candIdx}
+          round="screening"
           onExit={goHome}
           onHome={goHome}
-          onFinish={(a) => {
-            setAnswers(a)
-            setStage('report')
-            if (typeof window !== 'undefined') window.scrollTo(0, 0)
+          onFinish={() => {
+            // Screening done — proceed to the real interview.
+            setStage('final')
+            scrollTop()
           }}
         />
       )}
+
+      {stage === 'final' && (
+        <InterviewRoom
+          roleIdx={roleIdx}
+          round="final"
+          onExit={goHome}
+          onHome={goHome}
+          onFinish={(a) => {
+            // Real interview done — announce the offline final round.
+            setAnswers(a)
+            setStage('offline')
+            scrollTop()
+          }}
+        />
+      )}
+
+      {stage === 'offline' && (
+        <FinalRound
+          roleIdx={roleIdx}
+          onContinue={() => {
+            setStage('report')
+            scrollTop()
+          }}
+          onHome={goHome}
+        />
+      )}
+
       {stage === 'report' && (
         <Report
           roleIdx={roleIdx}
-          candIdx={candIdx}
           answers={answers}
           onRestart={goHome}
           onHome={goHome}

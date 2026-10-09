@@ -2,12 +2,15 @@ from ultralytics import YOLO
 import cv2
 import time
 import os
+import sys
 import csv
 from collections import defaultdict
 
 # File paths and settings
 MODEL_PATH = "yolov8n.pt"
-VIDEO_PATH = "video/humans.mp4"
+# Optional: pass a video path as the first argument, e.g.
+#   python human_detection.py video/human_detection_screening_frontend_<stamp>_camera_recording.webm
+VIDEO_PATH = sys.argv[1] if len(sys.argv) > 1 else "video/humans.mp4"
 OUTPUT_VIDEO = "output.mp4"
 CONFIDENCE = 0.5
 

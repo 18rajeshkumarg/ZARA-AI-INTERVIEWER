@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, Volume2, SkipForward, X, Camera, ShieldAlert, ArrowLeft } from 'lucide-react'
-import { roles, candidates, type ScoreMap } from '../lib/interview'
+import { Mic, Volume2, SkipForward, X, Camera, ShieldAlert, ArrowLeft, FolderOpen } from 'lucide-react'
+import { roles, screeningQuestions, type ScoreMap, type Question } from '../lib/interview'
+import {
+  startCapture,
+  speak,
+  stopSpeaking,
+  saveFiles,
+  pickDirectory,
+  getSharedDirName,
+  formatClock,
+  fileStamp,
+  speechRecognitionSupported,
+  type SessionCapture,
+  type TranscriptLine,
+  type PickedFile,
+} from '../lib/capture'
 
 const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
 
@@ -12,6 +26,8 @@ export interface AnswerRecord {
   scores: ScoreMap
   kw: string[]
 }
+
+export type InterviewRound = 'screening' | 'final'
 
 const ROLE0 = roles[0]
 
@@ -72,23 +88,26 @@ async function loadPersonDetector(): Promise<PersonDetector> {
   return cocoSsd.load({ base: 'lite_mobilenet_v2' })
 }
 
+const LETTERS = ['A', 'B', 'C', 'D', 'E']
+
 export default function InterviewRoom({
   roleIdx,
-  candIdx,
+  round,
   onExit,
   onFinish,
   onHome,
 }: {
   roleIdx: number
-  candIdx: number
+  round: InterviewRound
   onExit: () => void
   onFinish: (answers: AnswerRecord[]) => void
   onHome: () => void
 }) {
   const role = roles[roleIdx]
-  const cand = candidates[candIdx]
+  const questions: Question[] = round === 'screening' ? screeningQuestions : role.questions
+  const roundLabel = round === 'screening' ? 'Screening round' : 'Real interview'
 
-  const [phase, setPhase] = useState<'ask' | 'typing' | 'answer' | 'feedback'>('ask')
+  const [phase, setPhase] = useState<'brief' | 'ask' | 'answer' | 'feedback'>('brief')
   const [qi, setQi] = useState(0)
   const [scores, setScores] = useState<ScoreMap>({ structure: 0, vocab: 0, fluency: 0, confidence: 0 })
   const [history, setHistory] = useState<AnswerRecord[]>([])
@@ -99,15 +118,37 @@ export default function InterviewRoom({
   const [violation, setViolation] = useState<string | null>(null)
   const [violationAt, setViolationAt] = useState<string | null>(null)
   const [evidence, setEvidence] = useState<string | null>(null)
-  const timer = useRef<number | null>(null)
+  const [lines, setLines] = useState<TranscriptLine[]>([])
+  const [interim, setInterim] = useState('')
+  const [recSec, setRecSec] = useState(0)
+  const [dirLabel, setDirLabel] = useState<string | null>(null)
+  const [savedTo, setSavedTo] = useState<string | null>(null)
+
   const doneRef = useRef(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const camRunRef = useRef(0)
   const stoppedRef = useRef(false)
   const detectorPromiseRef = useRef<Promise<PersonDetector> | null>(null)
+  const captureRef = useRef<SessionCapture | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const startedAtRef = useRef<number | null>(null)
+  const linesRef = useRef<TranscriptLine[]>([])
+  const historyRef = useRef<AnswerRecord[]>([])
+  const finalizedRef = useRef(false)
 
-  const question = role.questions[qi]
+  const question = questions[qi]
+
+  /** Append a transcript line (to the live UI and to the saved capture). */
+  const note = (kind: TranscriptLine['kind'], text: string) => {
+    const cap = captureRef.current
+    const line: TranscriptLine = cap
+      ? cap.addLine(kind, text)
+      : { t: Date.now() - (startedAtRef.current ?? Date.now()), kind, text }
+    linesRef.current = [...linesRef.current, line]
+    setLines(linesRef.current)
+  }
 
   // ----- camera helpers -------------------------------------------------
   const stopCamera = () => {
@@ -133,18 +174,119 @@ export default function InterviewRoom({
     }
   }
 
+  /**
+   * Stop recording, flush the camera + voice files, build the transcript and
+   * store everything in the Human_Detection folder (or download the files).
+   * Safe to call more than once — only the first call does the work.
+   */
+  const finalize = async (endReason?: string): Promise<void> => {
+    if (finalizedRef.current) return
+    finalizedRef.current = true
+    stopSpeaking()
+
+    const cap = captureRef.current
+    captureRef.current = null
+    let result: { video: Blob | null; voice: Blob | null; lines: TranscriptLine[] } | null = null
+    if (cap) {
+      try {
+        result = await cap.stop()
+      } catch {
+        result = null
+      }
+    }
+    try {
+      await audioCtxRef.current?.close()
+    } catch {
+      /* ignore */
+    }
+    audioCtxRef.current = null
+    analyserRef.current = null
+
+    const finalLines = result?.lines ?? linesRef.current
+    const startedAt = startedAtRef.current ?? Date.now()
+    const stamp = fileStamp()
+    const base = `human_detection_${round}_${role.id}_${stamp}`
+
+    const transcript = [
+      'ZARA AI INTERVIEW — SESSION DATA',
+      '=================================',
+      `Round: ${roundLabel}`,
+      `Role: ${role.title} (${role.level})`,
+      `Started: ${new Date(startedAt).toLocaleString()}`,
+      `Ended: ${new Date().toLocaleString()}`,
+      `Status: ${endReason ?? 'Completed normally'}`,
+      `Voice transcription: ${
+        speechRecognitionSupported()
+          ? 'live transcript captured below'
+          : 'NOT SUPPORTED in this browser — use the candidate_voice file'
+      }`,
+      `Storage target: ${dirLabel ? `Human_Detection/${dirLabel}/` : 'browser downloads → move into Human_Detection/'}`,
+      '',
+      '--- TRANSCRIPT ---',
+      '',
+      ...finalLines.map((l) => `[${formatClock(l.t)}] ${labelFor(l.kind)}: ${l.text}`),
+      '',
+    ].join('\n')
+
+    const totals = historyRef.current.reduce(
+      (acc, a) => ({
+        structure: acc.structure + (a.scores.structure ?? 0),
+        vocab: acc.vocab + (a.scores.vocab ?? 0),
+        fluency: acc.fluency + (a.scores.fluency ?? 0),
+        confidence: acc.confidence + (a.scores.confidence ?? 0),
+      }),
+      { structure: 0, vocab: 0, fluency: 0, confidence: 0 },
+    )
+    const meta = {
+      round,
+      roundLabel,
+      role: { id: role.id, title: role.title, level: role.level },
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date().toISOString(),
+      durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+      status: endReason ?? 'completed',
+      cameraRecording: Boolean(result?.video?.size),
+      voiceRecording: Boolean(result?.voice?.size),
+      transcriptLines: finalLines.length,
+      totals,
+      answers: historyRef.current.map((a) => ({
+        question: a.q,
+        answer: a.text,
+        feedback: a.feedback,
+        scores: a.scores,
+      })),
+    }
+
+    const files: PickedFile[] = []
+    if (result?.video && result.video.size > 0) files.push({ name: `${base}_camera_recording.webm`, data: result.video })
+    if (result?.voice && result.voice.size > 0) files.push({ name: `${base}_candidate_voice.webm`, data: result.voice })
+    files.push({ name: `${base}_transcript.txt`, data: transcript })
+    files.push({ name: `${base}_session.json`, data: JSON.stringify(meta, null, 2) })
+
+    try {
+      const dest = await saveFiles(files)
+      setSavedTo(
+        dest === 'folder'
+          ? `Human_Detection/${dirLabel ?? getSharedDirName() ?? ''}/`
+          : 'Browser downloads — move the files into Human_Detection/',
+      )
+    } catch {
+      setSavedTo('Could not save session data')
+    }
+  }
+
   // Stop the interview on the spot for a proctoring violation.
   const terminate = (reason: string) => {
     if (stoppedRef.current) return
     stoppedRef.current = true
     setEvidence(captureFrame())
-    stopCamera()
-    if (timer.current) {
-      window.clearTimeout(timer.current)
-      timer.current = null
-    }
+    stopSpeaking()
     setViolationAt(new Date().toLocaleTimeString())
     setViolation(reason)
+    // Flush recordings + transcript first (sync part stops the recorders),
+    // then release the camera.
+    void finalize(reason)
+    stopCamera()
     if (typeof window !== 'undefined') window.scrollTo(0, 0)
   }
 
@@ -154,7 +296,7 @@ export default function InterviewRoom({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
+        audio: { echoCancellation: true, noiseSuppression: true },
       })
       if (run !== camRunRef.current || stoppedRef.current) {
         stream.getTracks().forEach((t) => t.stop())
@@ -162,10 +304,14 @@ export default function InterviewRoom({
       }
       streamRef.current = stream
       if (videoRef.current) videoRef.current.srcObject = stream
+      const onEnded = (reason: string) => {
+        if (run === camRunRef.current && !stoppedRef.current) terminate(reason)
+      }
       stream.getVideoTracks().forEach((track) => {
-        track.addEventListener('ended', () => {
-          if (!stoppedRef.current) terminate('Camera was turned off or blocked')
-        })
+        track.addEventListener('ended', () => onEnded('Camera was turned off or blocked'))
+      })
+      stream.getAudioTracks().forEach((track) => {
+        track.addEventListener('ended', () => onEnded('Microphone was turned off'))
       })
       setCamStatus('live')
     } catch {
@@ -179,7 +325,7 @@ export default function InterviewRoom({
     void acquireCamera()
   }
 
-  // Camera must be on for the whole interview — start it on mount.
+  // Camera + mic must be on for the whole interview — start them on mount.
   useEffect(() => {
     const kickoff = window.setTimeout(() => { void acquireCamera() }, 0)
     return () => {
@@ -197,6 +343,44 @@ export default function InterviewRoom({
     if (camStatus === 'live' && videoRef.current && streamRef.current) {
       videoRef.current.srcObject = streamRef.current
     }
+  }, [camStatus])
+
+  // ----- recording + transcription ---------------------------------------
+  // Start the camera recorder, the voice-only recorder, the live transcript,
+  // and the mic analyser that drives the waveform as soon as the camera is up.
+  useEffect(() => {
+    if (camStatus !== 'live' || captureRef.current) return
+    const stream = streamRef.current
+    if (!stream) return
+    startedAtRef.current = Date.now()
+    captureRef.current = startCapture(stream, {
+      onLine: (line) => {
+        linesRef.current = [...linesRef.current, line]
+        setLines(linesRef.current)
+      },
+      onPartial: (text) => setInterim(text),
+    })
+    try {
+      const ctx = new AudioContext()
+      const src = ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()))
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 64
+      src.connect(analyser)
+      audioCtxRef.current = ctx
+      analyserRef.current = analyser
+    } catch {
+      // Waveform falls back to its idle animation.
+    }
+  }, [camStatus])
+
+  // Recording timer (REC badge).
+  useEffect(() => {
+    if (camStatus !== 'live') return
+    const id = window.setInterval(() => {
+      if (stoppedRef.current) return
+      setRecSec(Math.floor((Date.now() - (startedAtRef.current ?? Date.now())) / 1000))
+    }, 1000)
+    return () => window.clearInterval(id)
   }, [camStatus])
 
   // ----- proctoring ------------------------------------------------------
@@ -321,29 +505,69 @@ export default function InterviewRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camStatus, violation])
 
-  // Live waveform animation (frozen once the interview is terminated)
+  // ----- waveform: real microphone levels --------------------------------
   useEffect(() => {
     const id = window.setInterval(() => {
       if (stoppedRef.current) return
-      setWave((w) => w.map(() => 6 + Math.random() * 26))
+      const analyser = analyserRef.current
+      if (analyser) {
+        const data = new Uint8Array(analyser.frequencyBinCount)
+        analyser.getByteFrequencyData(data)
+        setWave((w) => w.map((_, i) => 6 + ((data[i % data.length] ?? 0) / 255) * 28))
+      } else {
+        setWave((w) => w.map(() => 6 + Math.random() * 26))
+      }
     }, 140)
     return () => window.clearInterval(id)
   }, [])
 
-  // Advance ask -> answer phase (model asks question shortly after).
-  // Waits until the camera is live — the interview only runs while proctored.
+  // ----- ZARA speaks: instructions, questions and options ----------------
+  // On entry, ZARA reads the instructions (brief) or the question with all of
+  // its options (ask) aloud, then the interview proceeds automatically.
   useEffect(() => {
-    if (phase !== 'ask' || camStatus !== 'live' || violation) return
-    timer.current = window.setTimeout(() => setPhase('answer'), 900)
-    return () => { if (timer.current) window.clearTimeout(timer.current) }
-  }, [phase, qi, camStatus, violation])
+    if (camStatus !== 'live' || violation) return
+    if (phase !== 'brief' && phase !== 'ask') return
+    let cancelled = false
+
+    const text =
+      phase === 'brief'
+        ? round === 'screening'
+          ? 'Welcome to the ZARA AI interview. This is the screening round. Your camera and microphone are switched on, and everything is being recorded and transcribed. I will read each question aloud, followed by the options. After I finish, take your time to respond in your own voice, or select an option on screen. Please stay in frame, and do not switch tabs or capture the screen. Let us begin.'
+          : 'Welcome to the real interview. The same rules apply: your camera and microphone stay on, and everything is recorded and transcribed. I will read each question and its options aloud. Then you can answer in your own voice, or choose an option on screen. Let us begin.'
+        : `Question ${qi + 1} of ${questions.length}. ${question.q} ${question.answers
+            .map((a, i) => `Option ${LETTERS[i]}. ${a.text}`)
+            .join(' ')}`
+
+    // ZARA's own voice must not be transcribed as the candidate's answer.
+    captureRef.current?.pauseVoice()
+    const speaker = speak(text)
+    speaker.done.then(() => {
+      if (cancelled || stoppedRef.current) return
+      captureRef.current?.resumeVoice()
+      if (phase === 'brief') {
+        note('note', 'Instructions delivered — starting the interview.')
+        setPhase('ask')
+      } else {
+        note('question', `Q${qi + 1}: ${question.q}`)
+        setPhase('answer')
+      }
+    })
+    return () => {
+      cancelled = true
+      speaker.cancel()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, qi, camStatus, violation, round])
 
   const beginFeedback = (ansIdx: number) => {
     if (stoppedRef.current) return
     const ans = question.answers[ansIdx]
     const rec: AnswerRecord = { q: question.q, text: ans.text, feedback: ans.feedback, scores: ans.scores, kw: ans.kw }
     const nh = [...history, rec]
+    historyRef.current = nh
     setHistory(nh)
+    note('answer', `Option ${LETTERS[ansIdx]}: ${ans.text}`)
+    setInterim('')
     setScores((s) => ({
       structure: (s.structure ?? 0) + (ans.scores.structure ?? 0),
       vocab: (s.vocab ?? 0) + (ans.scores.vocab ?? 0),
@@ -356,26 +580,58 @@ export default function InterviewRoom({
 
   const next = () => {
     if (stoppedRef.current) return
-    const rec = history[history.length - 1]
-    if (qi + 1 < role.questions.length) {
+    if (qi + 1 < questions.length) {
+      note('note', `Moving to question ${qi + 2} of ${questions.length}.`)
       setQi(qi + 1)
       setPhase('ask')
     } else {
       if (doneRef.current) return
       doneRef.current = true
-      onFinish(history)
+      note('note', round === 'screening' ? 'Screening round completed.' : 'Real interview completed.')
+      void finalize(
+        round === 'screening' ? 'Screening round completed normally' : 'Real interview completed normally',
+      ).then(() => onFinish(historyRef.current))
     }
-    void rec
+  }
+
+  const endInterview = () => {
+    if (!stoppedRef.current && !doneRef.current) void finalize('Interview ended early')
+    onExit()
+  }
+
+  const goHomeNow = () => {
+    if (!stoppedRef.current && !doneRef.current) void finalize('Returned to home')
+    onHome()
+  }
+
+  const pickFolder = async () => {
+    const handle = await pickDirectory()
+    if (handle) {
+      try {
+        setDirLabel(await handle.getName())
+      } catch {
+        setDirLabel('Human_Detection')
+      }
+    }
   }
 
   const liveScore = (key: keyof ScoreMap) => {
-    const total = role.questions.length * 20
+    const total = questions.length * 20
     const v = scores[key] ?? 0
     return Math.round((v / total) * 100)
   }
 
   const dimVal = liveScore('vocab')
-  const isLast = qi + 1 >= role.questions.length
+  const isLast = qi + 1 >= questions.length
+  const storedDir = dirLabel ?? getSharedDirName()
+  const phaseStatus =
+    phase === 'brief'
+      ? 'Giving instructions'
+      : phase === 'ask'
+        ? 'ZARA is speaking'
+        : phase === 'answer'
+          ? 'Listening'
+          : 'Scoring'
 
   return (
     <div className="min-h-screen bg-[#0d0d10] text-paper bg-grid-dark">
@@ -386,7 +642,7 @@ export default function InterviewRoom({
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              onClick={onHome}
+              onClick={goHomeNow}
               className="flex shrink-0 cursor-pointer items-center gap-2"
               aria-label="Go to home page"
               title="Home"
@@ -397,15 +653,15 @@ export default function InterviewRoom({
             <div className="h-5 w-px bg-white/15" />
             <div className="min-w-0">
               <div className="truncate font-mono2 text-[11px] uppercase tracking-[0.16em] text-white/80">
-                {role.title} — {cand.name}
+                {role.title} — {roundLabel}
               </div>
               <div className="font-mono2 text-[10px] uppercase tracking-[0.14em] text-white/45">
-                {cand.city}, {cand.country} · {cand.tz.split('/').pop()}
+                Camera & mic on · Recording · Live transcription
               </div>
             </div>
           </div>
           <button
-            onClick={onExit}
+            onClick={endInterview}
             className="inline-flex items-center gap-1.5 border border-white/20 px-3 py-1.5 font-mono2 text-[10px] uppercase tracking-[0.16em] text-white/70 hover:border-zara hover:text-zara transition-colors"
           >
             <X className="h-3.5 w-3.5" /> End
@@ -423,17 +679,15 @@ export default function InterviewRoom({
                 <span className="absolute inline-flex h-full w-full rounded-full bg-zara ping-slow" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-zara" />
               </span>
-              <span className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-white/60">
-                {phase === 'answer' ? 'Listening' : phase === 'feedback' ? 'Scoring' : 'Calibrating question'}
-              </span>
+              <span className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-white/60">{phaseStatus}</span>
             </div>
             <span className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-white/40">
-              Q {Math.min(qi + 1, role.questions.length)} / {role.questions.length}
+              Q {Math.min(qi + 1, questions.length)} / {questions.length}
             </span>
           </div>
 
           <div className="p-4 sm:p-6">
-            {/* Waveform */}
+            {/* Waveform (driven by the live microphone) */}
             <div className="flex h-14 items-center gap-1 rounded border border-white/10 bg-black/40 px-3">
               <Volume2 className="mr-2 h-4 w-4 text-zara" />
               {wave.map((h, i) => (
@@ -445,40 +699,95 @@ export default function InterviewRoom({
               ))}
             </div>
 
+            {/* Instructions (spoken + shown) before the interview starts */}
+            {phase === 'brief' && (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 rounded border border-zara/40 bg-zara/[0.07] p-5"
+              >
+                <div className="font-mono2 text-[10px] uppercase tracking-[0.24em] text-zara">
+                  {roundLabel} — before we begin, your instructions
+                </div>
+                <ol className="mt-3 space-y-2 text-sm leading-relaxed text-white/85">
+                  <li>1. Keep your <strong>camera and microphone ON</strong> for the whole interview — everything is recorded.</li>
+                  <li>2. Stay in frame — the AI verifies that exactly one person is visible.</li>
+                  <li>3. Do not switch tabs or capture the screen — violations end the interview instantly.</li>
+                  <li>4. Listen as ZARA reads each question and its options aloud.</li>
+                  <li>5. Answer in your own voice — every word is transcribed live — or tap an option on screen.</li>
+                </ol>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void pickFolder()}
+                    className="inline-flex items-center gap-2 border border-white/25 px-4 py-2 font-mono2 text-[10px] uppercase tracking-[0.16em] text-white/80 hover:border-zara hover:text-zara transition-colors"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" /> Choose Human_Detection folder
+                  </button>
+                  <span className="font-mono2 text-[10px] tracking-[0.1em] text-white/50">
+                    {storedDir ? `Saving session data to: ${storedDir}/` : 'No folder chosen — files auto-download at the end'}
+                  </span>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm text-white/70">
+                  <Volume2 className="h-4 w-4 text-zara" />
+                  <span className="animate-pulse">ZARA is reading the instructions aloud…</span>
+                </div>
+              </motion.div>
+            )}
+
             {/* Question */}
-            <div className="mt-6">
-              <div className="font-mono2 text-[10px] uppercase tracking-[0.24em] text-zara">Question {qi + 1}</div>
-              <AnimatePresence mode="wait">
-                <motion.h2
-                  key={qi}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="mt-2 text-2xl sm:text-[28px] font-black leading-tight tracking-tight"
-                >
-                  {question.q}
-                </motion.h2>
-              </AnimatePresence>
-            </div>
+            {phase !== 'brief' && (
+              <div className="mt-6">
+                <div className="font-mono2 text-[10px] uppercase tracking-[0.24em] text-zara">
+                  Question {qi + 1} · {roundLabel}
+                </div>
+                <AnimatePresence mode="wait">
+                  <motion.h2
+                    key={qi}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-2 text-2xl sm:text-[28px] font-black leading-tight tracking-tight"
+                  >
+                    {question.q}
+                  </motion.h2>
+                </AnimatePresence>
+                {phase === 'ask' && (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-white/65">
+                    <Volume2 className="h-4 w-4 text-zara" />
+                    <span className="animate-pulse">ZARA is reading the question and all options aloud…</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Answer options / candidate speech */}
             <div className="mt-6 space-y-3">
               {phase === 'answer' && (
                 <>
-                  <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-white/45">
-                    Simulating {cand.name.split(' ')[0]} typing a response…
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-white/45">
+                      <Mic className="mr-1 inline h-3 w-3 text-emerald-400" />
+                      Mic live — speak your answer, or choose an option:
+                    </p>
+                    <span className="font-mono2 text-[10px] uppercase tracking-[0.16em] text-emerald-400">
+                      ● recording
+                    </span>
+                  </div>
+                  {interim && (
+                    <p className="border-l-2 border-zara/60 pl-3 text-sm italic text-zara">“{interim}”</p>
+                  )}
                   {question.answers.map((a, i) => (
                     <motion.button
                       key={i}
                       initial={{ opacity: 0, x: -14 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + i * 0.35 }}
+                      transition={{ delay: 0.3 + i * 0.3 }}
                       onClick={() => beginFeedback(i)}
                       className="group block w-full rounded border border-white/15 bg-white/[0.03] p-4 text-left text-sm leading-relaxed text-white/85 transition-colors hover:border-zara hover:bg-zara/10"
                     >
-                      <span className="mr-2 font-mono2 text-[10px] text-zara">{String.fromCharCode(65 + i)}</span>
+                      <span className="mr-2 font-mono2 text-[10px] text-zara">{LETTERS[i]}</span>
                       {a.text}
                     </motion.button>
                   ))}
@@ -514,7 +823,11 @@ export default function InterviewRoom({
                     onClick={next}
                     className="group inline-flex items-center gap-2 bg-zara px-5 py-2.5 font-mono2 text-[11px] uppercase tracking-[0.2em] text-white hover:bg-white hover:text-ink transition-colors"
                   >
-                    {isLast ? 'Generate report' : 'Next question'}
+                    {isLast
+                      ? round === 'screening'
+                        ? 'Proceed to real interview'
+                        : 'Complete interview'
+                      : 'Next question'}
                     <SkipForward className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </button>
                 </motion.div>
@@ -532,9 +845,9 @@ export default function InterviewRoom({
                 <Camera className="h-4 w-4 text-zara" />
                 <h3 className="font-mono2 text-[11px] uppercase tracking-[0.2em] text-white/70">Camera</h3>
               </div>
-              <span className="flex items-center gap-1.5 font-mono2 text-[9px] uppercase tracking-[0.16em] text-emerald-400">
-                <span className={`h-1.5 w-1.5 rounded-full bg-emerald-400 ${camStatus === 'live' ? 'animate-pulse' : 'opacity-40'}`} />
-                {camStatus === 'live' ? 'Live' : 'Starting'}
+              <span className="flex items-center gap-1.5 font-mono2 text-[9px] uppercase tracking-[0.16em] text-red-400">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+                REC {formatClock(recSec * 1000)}
               </span>
             </div>
             <video
@@ -567,6 +880,9 @@ export default function InterviewRoom({
             </div>
             <p className="mt-2 font-mono2 text-[9px] leading-relaxed uppercase tracking-[0.12em] text-white/40">
               Proctored session — switching tabs, capturing the screen, or 0 / 2+ people on camera stops the interview instantly.
+            </p>
+            <p className="mt-1 font-mono2 text-[9px] leading-relaxed uppercase tracking-[0.12em] text-white/45">
+              Data → {storedDir ? `Human_Detection/${storedDir}/` : 'auto-download at end'}
             </p>
           </div>
 
@@ -601,22 +917,38 @@ export default function InterviewRoom({
           </div>
 
           <div className="border border-white/12 bg-[#121216] p-4">
-            <h3 className="font-mono2 text-[11px] uppercase tracking-[0.2em] text-white/70">Transcript</h3>
+            <h3 className="font-mono2 text-[11px] uppercase tracking-[0.2em] text-white/70">Live transcript</h3>
             <div className="mt-3 max-h-72 space-y-3 overflow-y-auto pr-1 no-scrollbar">
-              {history.length === 0 && (
+              {lines.length === 0 && (
                 <p className="text-xs text-white/40">
                   <span className="typing-dot inline-block">.</span>
                   <span className="typing-dot inline-block" style={{ animationDelay: '0.2s' }}>.</span>
                   <span className="typing-dot inline-block" style={{ animationDelay: '0.4s' }}>.</span>
-                  <span className="ml-1">Waiting for first answer…</span>
+                  <span className="ml-1">Waiting for the interview to start…</span>
                 </p>
               )}
-              {history.map((h, i) => (
-                <div key={i} className="border-l-2 border-zara/60 pl-3">
-                  <div className="font-mono2 text-[9px] uppercase tracking-[0.18em] text-white/40">Q{i + 1}</div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-white/75">{h.text}</div>
+              {lines.map((l, i) => (
+                <div
+                  key={i}
+                  className={`border-l-2 pl-3 ${
+                    l.kind === 'speech'
+                      ? 'border-emerald-400/60'
+                      : l.kind === 'question'
+                        ? 'border-zara/60'
+                        : l.kind === 'answer'
+                          ? 'border-white/30'
+                          : 'border-white/15'
+                  }`}
+                >
+                  <div className="font-mono2 text-[9px] uppercase tracking-[0.18em] text-white/40">
+                    {formatClock(l.t)} · {labelFor(l.kind)}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-white/75">{l.text}</div>
                 </div>
               ))}
+              {interim && (
+                <div className="border-l-2 border-zara pl-3 text-[11px] italic text-zara">“{interim}”</div>
+              )}
             </div>
           </div>
         </aside>
@@ -628,12 +960,12 @@ export default function InterviewRoom({
           <div className="w-full max-w-md border border-white/15 bg-[#121216] p-6 text-center">
             <Camera className="mx-auto h-9 w-9 text-zara" />
             <h2 className="mt-4 text-xl font-black tracking-tight">
-              {camStatus === 'starting' ? 'Starting your camera…' : 'Camera access required'}
+              {camStatus === 'starting' ? 'Starting your camera and microphone…' : 'Camera & microphone required'}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-white/60">
               {camStatus === 'starting'
-                ? 'Please allow camera access in your browser to continue the interview.'
-                : 'This interview is proctored — the camera must stay on for the whole session. Allow camera access to continue.'}
+                ? 'Please allow camera AND microphone access to continue the interview.'
+                : 'This interview is proctored and recorded — the camera and microphone must stay on for the whole session. Allow access to continue.'}
             </p>
             {camStatus === 'denied' && (
               <button
@@ -641,7 +973,7 @@ export default function InterviewRoom({
                 onClick={startCamera}
                 className="mt-5 inline-flex items-center gap-2 bg-zara px-5 py-2.5 font-mono2 text-[11px] uppercase tracking-[0.2em] text-white hover:bg-white hover:text-ink transition-colors"
               >
-                <Camera className="h-4 w-4" /> Grant camera access
+                <Camera className="h-4 w-4" /> Grant camera & mic access
               </button>
             )}
           </div>
@@ -672,7 +1004,8 @@ export default function InterviewRoom({
               <div className="text-left font-mono2 text-[10px] uppercase leading-relaxed tracking-[0.14em] text-white/45">
                 <div>Camera feed: stopped</div>
                 <div>Recorded at: {violationAt}</div>
-                <div>Session: {cand.name} · {role.title}</div>
+                <div>Session: {roundLabel} · {role.title}</div>
+                {savedTo && <div className="text-emerald-400">Data saved: {savedTo}</div>}
               </div>
             </div>
             <button
@@ -687,6 +1020,16 @@ export default function InterviewRoom({
       )}
     </div>
   )
+}
+
+function labelFor(kind: TranscriptLine['kind']): string {
+  return kind === 'speech'
+    ? 'candidate voice'
+    : kind === 'question'
+      ? 'zara asked'
+      : kind === 'answer'
+        ? 'selected'
+        : 'system'
 }
 
 export { ROLE0 }

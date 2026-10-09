@@ -53,7 +53,7 @@ function Faq({ q, a }: { q: string; a: string }) {
   )
 }
 
-export default function Landing({ onStart, onPick }: { onStart: (role: number, cand: number) => void; onPick?: (role: number, cand: number) => void }) {
+export default function Landing({ onStart }: { onStart: (role: number) => void }) {
   return (
     <div className="min-h-screen bg-paper text-ink">
       <div className="pointer-events-none fixed inset-0 aurora-light" aria-hidden="true" />
@@ -119,7 +119,7 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
             className="mt-8 flex flex-wrap items-center justify-center gap-3"
           >
             <button
-              onClick={() => onStart(0, 0)}
+              onClick={() => onStart(0)}
               className="group inline-flex items-center gap-2 bg-ink px-6 py-3 font-mono2 text-[12px] uppercase tracking-[0.2em] text-paper hover:bg-zara transition-colors"
             >
               Start a demo interview
@@ -192,7 +192,10 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
       {/* Roles */}
       <section id="roles" className="border-b border-ink/10 bg-grid-light">
         <div className="mx-auto max-w-6xl px-5 py-16">
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight">PICK A ROLE & A CANDIDATE</h2>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight">PICK A ROLE</h2>
+          <p className="mt-2 text-sm text-ink/60">
+            Start with a short screening round, then the real interview with ZARA AI — the final round is held one-on-one, offline.
+          </p>
           <div className="mt-8 space-y-6">
             {roles.map((role, ri) => (
               <div key={role.id} className="border border-ink/20 bg-paper">
@@ -202,7 +205,7 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
                     <div className="font-mono2 text-[11px] uppercase tracking-[0.18em] text-ink/55">{role.level} · {role.duration}</div>
                   </div>
                   <button
-                    onClick={() => onStart(ri, 0)}
+                    onClick={() => onStart(ri)}
                     className="group inline-flex items-center gap-2 bg-zara px-5 py-2.5 font-mono2 text-[11px] uppercase tracking-[0.2em] text-white hover:bg-ink transition-colors"
                   >
                     Interview
@@ -214,19 +217,6 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
                     <span key={k} className="border border-ink/20 px-2.5 py-1 font-mono2 text-[10px] uppercase tracking-[0.14em] text-ink/60">{k}</span>
                   ))}
                 </div>
-                {onPick && (
-                  <div className="flex flex-wrap gap-2 border-t border-ink/15 px-5 py-3">
-                    {candidates.map((c, ci) => (
-                      <button
-                        key={c.id}
-                        onClick={() => onPick(ri, ci)}
-                        className="border border-ink/25 px-3 py-1.5 font-mono2 text-[10px] uppercase tracking-[0.12em] hover:border-zara hover:text-zara transition-colors"
-                      >
-                        {c.name} · {c.countryCode}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
           </div>

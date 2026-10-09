@@ -1,26 +1,23 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { RotateCcw, Download } from 'lucide-react'
-import { roles, candidates } from '../lib/interview'
+import { roles } from '../lib/interview'
 import type { AnswerRecord } from './InterviewRoom'
 
 const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
 
 export default function Report({
   roleIdx,
-  candIdx,
   answers,
   onRestart,
   onHome,
 }: {
   roleIdx: number
-  candIdx: number
   answers: AnswerRecord[]
   onRestart: () => void
   onHome: () => void
 }) {
   const role = roles[roleIdx]
-  const cand = candidates[candIdx]
 
   const total = role.questions.length * 20
   const overall = useMemo(() => {
@@ -59,7 +56,7 @@ export default function Report({
 
   const download = () => {
     const lines = [
-      `ZARA AI INTERVIEW — ${cand.name} — ${role.title}`,
+      `ZARA AI INTERVIEW — ${role.title} (${role.level})`,
       `Date: ${new Date().toLocaleString()}`,
       ``,
       `Overall: ${avg} · Verdict: ${verdict}`,
@@ -72,7 +69,7 @@ export default function Report({
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `zara-interview-${cand.name.replace(/\s+/g, '-').toLowerCase()}.txt`
+    a.download = `zara-interview-${role.id}.txt`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -120,9 +117,9 @@ export default function Report({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="font-mono2 text-[10px] uppercase tracking-[0.24em] text-zara">{role.title} · {role.level}</div>
-              <h1 className="mt-2 text-3xl sm:text-4xl font-black tracking-tight">{cand.name}</h1>
+              <h1 className="mt-2 text-3xl sm:text-4xl font-black tracking-tight">{role.title}</h1>
               <div className="mt-1.5 text-sm text-paper/60">
-                {cand.title} · {cand.years} yrs · {cand.city}, {cand.country}
+                {role.level} · {role.duration} · Screening + real interview (online) · Final round: one-on-one, offline
               </div>
             </div>
             <div className="text-right">

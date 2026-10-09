@@ -1,184 +1,169 @@
-# React + TypeScript + Vite
+# ZARA AI Interviewer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ZARA AI Interviewer is a polished, client-side interview simulation for hiring teams that need a fast, structured way to evaluate candidates across roles and locations.
 
-Currently, two official plugins are available:
+The experience takes a candidate from role selection through a **screening round** and a **real interview** — both conducted live by ZARA AI with the camera and microphone on, voice read-out, live transcription and automatic recording — and into a scored, downloadable report. The final round is announced as a **one-on-one, offline** interview with the hiring panel. Everything runs in the browser; no backend is required.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## What It Includes
 
-## React Compiler
+- Landing page with product overview, workflow explanation, FAQs, and a global candidate ticker.
+- Role selection for Senior Frontend Engineer and Senior Product Manager interviews.
+- **Screening round → real interview → offline final round** flow, driven by the Interview button.
+- **ZARA reads every question and its options aloud** (Web Speech synthesis) after speaking the start-of-interview instructions.
+- **Microphone stays on** for the whole interview — real mic levels drive the waveform.
+- **Live speech-to-text transcript** of everything the candidate says (Web Speech API).
+- **Automatic recording**: camera video (`*_camera_recording.webm`), candidate voice (`*_candidate_voice.webm`), timestamped transcript (`*_transcript.txt`) and session metadata (`*_session.json`).
+- Session data is written straight into the **`Human_Detection/` folder** (File System Access API) or auto-downloaded if no folder is chosen.
+- Live scoring across structure, technical vocabulary, vocal fluency, and confidence.
+- Per-answer AI-style feedback and tracked role keywords.
+- Final hiring verdicts: Strong hire, Hire, Lean hire, or No hire.
+- Plain-text report export with the role, scores, feedback, and keyword coverage.
+- Responsive layout for desktop and mobile screens.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Product Flow
 
-## Expanding the ESLint configuration
+1. Pick a role on the landing page and press **Interview**.
+2. ZARA greets the candidate, reads the instructions aloud, and starts the **screening round** (3 questions).
+3. The **real interview** (role-specific questions) follows with the same mechanics — questions and options are spoken, every response is transcribed and recorded.
+4. After both online rounds, the app announces that the **final round is conducted one-on-one, offline** with the hiring panel.
+5. Review the overall score, dimension breakdown, verdict, and per-answer feedback, then export the report.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Interview Proctoring
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    # ZARA AI Interviewer
+The live interview enforces a proctored session in `src/components/InterviewRoom.tsx`:
 
-    ZARA AI Interviewer is a polished, client-side interview simulation for hiring teams that need a fast, structured way to evaluate candidates across roles and locations.
+- The **camera and microphone must be on** for the whole interview; the session will not start without them.
+- The interview **auto-terminates** when the candidate switches tabs/windows, loses focus, captures the screen (PrintScreen / snipping shortcuts), turns the camera or microphone off, or when the **AI vision** scan sees **0 people** (candidate left) or **2+ people** (someone else present) on consecutive scans.
+- A violation freezes the session, stops the camera, captures a still frame as evidence, saves the partial recording + transcript, and shows the termination reason.
 
-    The experience takes a recruiter from role and candidate selection through a guided interview and into a scored, downloadable report. It is designed as a realistic product demo: the interview flow, scoring rubric, feedback, animations, and report generation all run in the browser.
+Person detection runs **100% in the browser** (TensorFlow.js COCO-SSD, `person` class — loaded on demand from CDN), so the static GitHub Pages deployment needs no backend. If the detector cannot load, the interview continues with the remaining proctoring checks.
 
-    ## What It Includes
+## Session Data In Human_Detection/
 
-    - Landing page with product overview, workflow explanation, FAQs, and candidate directory.
-    - Role selection for Senior Frontend Engineer and Senior Product Manager interviews.
-    - Candidate profiles for six candidates across Lagos, Tokyo, Bengaluru, Buenos Aires, Milan, and Dubai.
-    - Guided five-question interview sessions with calibrated answer paths.
-    - Live animated waveform, interview phase indicator, transcript, and score dimensions.
-    - Scoring across structure, technical vocabulary, vocal fluency, and confidence.
-    - Per-answer AI-style feedback and tracked role keywords.
-    - Final hiring verdicts: Strong hire, Hire, Lean hire, or No hire.
-    - Plain-text report export with the candidate, role, scores, feedback, and keyword coverage.
-    - Responsive layout for desktop and mobile screens.
+During the interview the browser records the camera feed and the candidate's voice and transcribes the conversation live. When the round ends (or is terminated), these files are saved automatically:
 
-    ## Product Flow
+```text
+human_detection_<round>_<role>_<timestamp>_camera_recording.webm
+human_detection_<round>_<role>_<timestamp>_candidate_voice.webm
+human_detection_<round>_<role>_<timestamp>_transcript.txt
+human_detection_<round>_<role>_<timestamp>_session.json
+```
 
-    1. Choose a role and candidate from the landing page.
-    2. Review each interview question and select one of the simulated candidate responses.
-    3. Inspect live score changes, keyword matches, and the running transcript.
-    4. Advance through all five questions.
-    5. Review the overall score, dimension breakdown, verdict, and per-answer feedback.
-    6. Export the report as a `.txt` file or start a new interview.
+- Press **Choose Human_Detection folder** at the start of the interview and pick this repository's `Human_Detection/` folder once — every round then saves directly into it (Chrome/Edge, File System Access API).
+- If no folder is chosen (or the browser does not support the picker, e.g. Firefox), the four files are downloaded automatically — move them into `Human_Detection/`.
+- The transcript and metadata also feed the offline Python tooling in [`Human_Detection/`](Human_Detection/) for further analysis.
 
-    ## Demo Scope
+## Tech Stack
 
-    This repository currently contains a fully interactive frontend demo. The interview responses and scoring data are defined locally in `src/lib/interview.ts`; there is no live AI provider, speech-to-text service, authentication, database, or backend API connected yet.
+- React 19
+- TypeScript
+- Vite 7
+- Tailwind CSS 4
+- Framer Motion for transitions and animated feedback
+- Lucide React for interface icons
+- Web APIs: MediaRecorder, Web Speech (recognition + synthesis), File System Access, AudioContext
+- TensorFlow.js + COCO-SSD (CDN, runtime) for in-browser person detection
 
-    The waveform and interview phases are visual simulations. To turn this into a production system, connect the interview room to a backend that handles authentication, candidate data, speech transcription, model evaluation, persistence, and organisation-level data retention controls.
+## Getting Started
 
-    ## Tech Stack
+### Prerequisites
 
-    - React 19
-    - TypeScript
-    - Vite 7
-    - Tailwind CSS 4
-    - Framer Motion for transitions and animated feedback
-    - Lucide React for interface icons
-    - React Router DOM is available for future route-based expansion
+- Node.js 18 or newer
+- npm 9 or newer
 
-    ## Getting Started
+### Install dependencies
 
-    ### Prerequisites
+```bash
+npm install
+```
 
-    - Node.js 18 or newer
-    - npm 9 or newer
+### Start the development server
 
-    ### Install dependencies
+```bash
+npm run dev
+```
 
-    ```bash
-    npm install
-    ```
+Vite will print the local URL, normally `http://localhost:5173`.
 
-    ### Start the development server
+### Create a production build
 
-    ```bash
-    npm run dev
-    ```
+```bash
+npm run build
+```
 
-    Vite will print the local URL, normally `http://localhost:5173`.
+### Preview the production build
 
-    ### Create a production build
+```bash
+npm run preview
+```
 
-    ```bash
-    npm run build
-    ```
+### Run lint checks
 
-    ### Preview the production build
+```bash
+npm run lint
+```
 
-    ```bash
-    npm run preview
-    ```
+### Verify the project
 
-    ### Run lint checks
+The project is checked with both commands before changes are published:
 
-    ```bash
-    npm run lint
-    ```
+```bash
+npm run lint
+npm run build
+```
 
-    ### Verify the project
+The build runs TypeScript project checks and creates the production bundle in `dist/`.
 
-    The project is checked with both commands before changes are published:
+## Project Structure
 
-    ```bash
-    npm run lint
-    npm run build
-    ```
+```text
+src/
+├── App.tsx                    # landing → screening → real interview → offline → report
+├── index.css                  # Global styles, Tailwind setup, fonts, and effects
+├── main.tsx                   # React application entry point
+├── components/
+│   ├── Landing.tsx             # Product landing page, nav, and role picker
+│   ├── InterviewRoom.tsx       # Recorded, proctored interview with voice + transcript
+│   ├── FinalRound.tsx          # Offline one-on-one final round announcement
+│   └── Report.tsx              # Score summary, feedback, and report export
+├── lib/
+│   ├── capture.ts              # Camera/voice recording, live transcript, TTS, folder storage
+│   └── interview.ts            # Roles, screening + interview questions, answers, scoring data
+└── assets/                     # Static application assets
+Human_Detection/
+├── human_detection.py          # YOLOv8 humans-only video analyzer (Python/OpenCV)
+├── requirements.txt            # Python dependencies
+└── video/                      # Place input videos here (and interview session data)
+```
 
-    The build runs TypeScript project checks and creates the production bundle in `dist/`.
+## Human_Detection (offline Python vision)
 
-    ## Project Structure
+[`Human_Detection/`](Human_Detection/) contains the standalone YOLOv8 pipeline for offline video analysis — bounding boxes, live FPS overlay, `output.mp4`, and `detections.csv`. It counts **humans only** via `classes=[0]`. It also receives the recorded interview session data (video, voice, transcript, metadata) saved by the web app. See [Human_Detection/README.md](Human_Detection/README.md) for setup and usage.
 
-    ```text
-    src/
-    ├── App.tsx                    # Controls landing, interview, and report stages
-    ├── index.css                  # Global styles, Tailwind setup, fonts, and effects
-    ├── main.tsx                   # React application entry point
-    ├── components/
-    │   ├── Landing.tsx             # Product landing page, nav, and role/candidate picker
-    │   ├── InterviewRoom.tsx       # Guided interview, live scoring, and proctoring
-    │   └── Report.tsx              # Score summary, feedback, and report export
-    ├── lib/
-    │   └── interview.ts            # Candidate, role, question, answer, and scoring data
-    └── assets/                     # Static application assets
-    Human_Detection/
-    ├── human_detection.py          # YOLOv8 humans-only video analyzer (Python/OpenCV)
-    ├── requirements.txt            # Python dependencies
-    └── video/                      # Place the input video (humans.mp4) here
-    ```
+## Customising The Demo
 
-    ## Interview Proctoring
+Edit `src/lib/interview.ts` to add or change:
 
-    The live interview enforces a proctored session in `src/components/InterviewRoom.tsx`:
+- Roles, interview duration labels, and tracked keywords.
+- Screening questions (`screeningQuestions`) and role-specific interview questions.
+- Answer choices, feedback text, and per-dimension scores.
 
-    - The **camera must be on** for the whole interview; the session will not start without it.
-    - The interview **auto-terminates** when the candidate switches tabs/windows, loses focus, captures the screen (PrintScreen / snipping shortcuts), turns the camera off, or when the **AI vision** scan sees **0 people** (candidate left) or **2+ people** (someone else present) on consecutive frames.
-    - A violation freezes the session, stops the camera, captures a still frame as evidence, and shows the termination reason.
+Each answer can contribute up to 20 points to each scoring dimension. The report normalises the accumulated scores to a 0–100 scale and derives the hiring verdict from the average.
 
-    Person detection runs **100% in the browser** (TensorFlow.js COCO-SSD, `person` class — loaded on demand from CDN), so the static GitHub Pages deployment needs no backend. If the detector cannot load, the interview continues with the remaining proctoring checks.
+## Deployment
 
-    ## Human_Detection (offline Python vision)
+The app is a static Vite frontend and deploys automatically to GitHub Pages via [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` installs the locked dependencies, builds the Vite site, and publishes the generated `dist/` directory.
 
-    [`Human_Detection/`](Human_Detection/) contains the standalone YOLOv8 pipeline for offline video analysis — bounding boxes, live FPS overlay, `output.mp4`, and `detections.csv`. It counts **humans only** via `classes=[0]`. See [Human_Detection/README.md](Human_Detection/README.md) for setup and usage.
+## Repository
 
-    ## Customising The Demo
+GitHub: [18rajeshkumarg/ZARA-AI-INTERVIEWER](https://github.com/18rajeshkumarg/ZARA-AI-INTERVIEWER)
 
-    Edit `src/lib/interview.ts` to add or change:
+## Live Preview
 
-    - Candidates and their location metadata.
-    - Roles, interview duration labels, and tracked keywords.
-    - Questions and answer choices.
-    - Feedback text and per-dimension scores.
+The project is live on GitHub Pages at:
 
-    Each answer can contribute up to 20 points to each scoring dimension. The report normalises the accumulated scores to a 0–100 scale and derives the hiring verdict from the average.
+[Open the ZARA AI Interviewer demo](https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/)
 
-    ## Deployment
+The deployment is automated by [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` installs the locked dependencies, builds the Vite site, and publishes the generated `dist/` directory to GitHub Pages.
 
-    The app is a static Vite frontend and can be deployed to Vercel, Netlify, GitHub Pages, or any static hosting provider.
-
-    ```bash
-    npm run build
-    ```
-
-    Deploy the generated `dist/` directory. Configure the host to serve `index.html` as the fallback for client-side routes if routes are added later.
-
-    ## Repository
-
-    GitHub: [18rajeshkumarg/ZARA-AI-INTERVIEWER](https://github.com/18rajeshkumarg/ZARA-AI-INTERVIEWER)
-
-    ## Live Preview
-
-    The project is live on GitHub Pages at:
-
-    [Open the ZARA AI Interviewer demo](https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/)
-
-    The deployment is automated by [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` installs the locked dependencies, builds the Vite site, and publishes the generated `dist/` directory to GitHub Pages.
-
-    The current deployment has completed successfully, with both the `build` and `deploy` jobs passing.
+The current deployment has completed successfully, with both the `build` and `deploy` jobs passing.

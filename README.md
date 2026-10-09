@@ -40,18 +40,19 @@ Person detection runs **100% in the browser** (TensorFlow.js COCO-SSD, `person` 
 
 ## Session Data In Human_Detection/
 
-During the interview the browser records the camera feed and the candidate's voice and transcribes the conversation live. When the round ends (or is terminated), these files are saved automatically:
+During the interview the browser records the camera feed and the candidate's voice and transcribes the conversation live. When the round ends (or is terminated), these files are saved automatically — **the camera recording clip goes into `Human_Detection/video/` automatically** (the subfolder is created if missing):
 
 ```text
-human_detection_<round>_<role>_<timestamp>_camera_recording.webm
-human_detection_<round>_<role>_<timestamp>_candidate_voice.webm
-human_detection_<round>_<role>_<timestamp>_transcript.txt
-human_detection_<round>_<role>_<timestamp>_session.json
+Human_Detection/video/human_detection_<round>_<role>_<timestamp>_camera_recording.webm   # video clip → video/ folder
+Human_Detection/human_detection_<round>_<role>_<timestamp>_candidate_voice.webm           # voice-only track
+Human_Detection/human_detection_<round>_<role>_<timestamp>_transcript.txt                 # timestamped live transcript
+Human_Detection/human_detection_<round>_<role>_<timestamp>_session.json                   # metadata, scores, answers
 ```
 
-- Press **Choose Human_Detection folder** at the start of the interview and pick this repository's `Human_Detection/` folder once — every round then saves directly into it (Chrome/Edge, File System Access API).
-- If no folder is chosen (or the browser does not support the picker, e.g. Firefox), the four files are downloaded automatically — move them into `Human_Detection/`.
+- Press **Choose Human_Detection folder** at the start of the interview and pick this repository's `Human_Detection/` folder once — every round then saves directly into it, with the **video clip landing in `Human_Detection/video/` automatically** (Chrome/Edge, File System Access API).
+- If no folder is chosen (or the browser does not support the picker, e.g. Firefox), the four files are downloaded automatically — move the `*_camera_recording.webm` clip into `Human_Detection/video/` and the rest into `Human_Detection/`.
 - The transcript and metadata also feed the offline Python tooling in [`Human_Detection/`](Human_Detection/) for further analysis.
+- Recorded session files are git-ignored, so recordings never end up in commits.
 
 ## Tech Stack
 

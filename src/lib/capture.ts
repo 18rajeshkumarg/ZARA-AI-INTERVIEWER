@@ -142,6 +142,7 @@ export interface FileHandleLike {
 export interface DirHandleLike {
   getName: () => Promise<string>
   getFileHandle: (name: string, opts?: { create?: boolean }) => Promise<FileHandleLike>
+  getDirectoryHandle: (name: string, opts?: { create?: boolean }) => Promise<DirHandleLike>
 }
 
 let sharedDir: DirHandleLike | null = null
@@ -178,6 +179,8 @@ export async function pickDirectory(): Promise<DirHandleLike | null> {
 export interface PickedFile {
   name: string
   data: Blob | string
+  /** Optional subfolder inside the chosen directory (e.g. 'video'). */
+  subdir?: string
 }
 
 function downloadBlob(name: string, data: Blob | string): void {
@@ -192,13 +195,22 @@ function downloadBlob(name: string, data: Blob | string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
 
-/** Writes files to the chosen folder; falls back to browser downloads. */
+/**
+ * Writes files to the chosen folder; files with a `subdir` (e.g. the recorded
+ * video clips) land in that subfolder, which is created automatically if it
+ * does not exist. Falls back to browser downloads if no folder is chosen or
+ * the folder became unavailable.
+ */
 export async function saveFiles(files: PickedFile[]): Promise<'folder' | 'downloads'> {
   const dir = sharedDir
   if (dir) {
     try {
       for (const f of files) {
-        const fh = await dir.getFileHandle(f.name, { create: true })
+        let target: DirHandleLike = dir
+        if (f.subdir) {
+          target = await dir.getDirectoryHandle(f.subdir, { create: true })
+        }
+        const fh = await target.getFileHandle(f.name, { create: true })
         const w = await fh.createWritable()
         await w.write(typeof f.data === 'string' ? new Blob([f.data], { type: 'text/plain;charset=utf-8' }) : f.data)
         await w.close()

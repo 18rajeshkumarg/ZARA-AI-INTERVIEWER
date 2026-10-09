@@ -258,7 +258,8 @@ export default function InterviewRoom({
     }
 
     const files: PickedFile[] = []
-    if (result?.video && result.video.size > 0) files.push({ name: `${base}_camera_recording.webm`, data: result.video })
+    if (result?.video && result.video.size > 0)
+      files.push({ name: `${base}_camera_recording.webm`, data: result.video, subdir: 'video' })
     if (result?.voice && result.voice.size > 0) files.push({ name: `${base}_candidate_voice.webm`, data: result.voice })
     files.push({ name: `${base}_transcript.txt`, data: transcript })
     files.push({ name: `${base}_session.json`, data: JSON.stringify(meta, null, 2) })
@@ -267,8 +268,8 @@ export default function InterviewRoom({
       const dest = await saveFiles(files)
       setSavedTo(
         dest === 'folder'
-          ? `Human_Detection/${dirLabel ?? getSharedDirName() ?? ''}/`
-          : 'Browser downloads — move the files into Human_Detection/',
+          ? `Human_Detection/${dirLabel ?? getSharedDirName() ?? ''}/ (video clip → video/)`
+          : 'Browser downloads — move the video clip into Human_Detection/video/',
       )
     } catch {
       setSavedTo('Could not save session data')
@@ -725,7 +726,7 @@ export default function InterviewRoom({
                     <FolderOpen className="h-3.5 w-3.5" /> Choose Human_Detection folder
                   </button>
                   <span className="font-mono2 text-[10px] tracking-[0.1em] text-white/50">
-                    {storedDir ? `Saving session data to: ${storedDir}/` : 'No folder chosen — files auto-download at the end'}
+                    {storedDir ? `Saving to: ${storedDir}/ — video clip → video/` : 'No folder chosen — files auto-download at the end'}
                   </span>
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-sm text-white/70">
@@ -882,7 +883,7 @@ export default function InterviewRoom({
               Proctored session — switching tabs, capturing the screen, or 0 / 2+ people on camera stops the interview instantly.
             </p>
             <p className="mt-1 font-mono2 text-[9px] leading-relaxed uppercase tracking-[0.12em] text-white/45">
-              Data → {storedDir ? `Human_Detection/${storedDir}/` : 'auto-download at end'}
+              Data → {storedDir ? `Human_Detection/${storedDir}/ — video clip → video/` : 'auto-download (video clip → Human_Detection/video/)'}
             </p>
           </div>
 

@@ -31,3 +31,9 @@ Human_Detection/output.mp4
 Human_Detection/detections.csv
 Human_Detection/__pycache__/
 Human_Detection/video/*.mp4
+
+# Interview session data recorded by the web app
+Human_Detection/video/*.webm
+Human_Detection/human_detection_*.webm
+Human_Detection/human_detection_*.txt
+Human_Detection/human_detection_*.json

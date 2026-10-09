@@ -89,8 +89,8 @@ export default function FinalRound({
           </div>
 
           <div className="mt-8 font-mono2 text-[10px] uppercase leading-relaxed tracking-[0.18em] text-white/45">
-            Session data (camera recording · candidate voice · live transcript) has been saved to the
-            Human_Detection folder, or downloaded to your browser.
+            Session data saved to Human_Detection — the camera recording clip lands in
+            Human_Detection/video/ automatically, with the voice, transcript and metadata alongside.
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

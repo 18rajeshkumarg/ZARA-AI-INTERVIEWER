@@ -49,22 +49,26 @@ python human_detection.py
 ## Interview session data (recorded by the web app)
 
 During a live interview the web app automatically records the session and
-saves the data into this folder (or downloads it if no folder was chosen):
+saves the data into this folder (or downloads it if no folder was chosen).
+**The camera recording video clip is placed in `video/` automatically:**
 
 ```
-human_detection_<round>_<role>_<timestamp>_camera_recording.webm  # camera video + candidate voice
-human_detection_<round>_<role>_<timestamp>_candidate_voice.webm   # voice-only track
-human_detection_<round>_<role>_<timestamp>_transcript.txt         # timestamped live transcript
-human_detection_<round>_<role>_<timestamp>_session.json           # metadata, scores, answers
+video/
+└── human_detection_<round>_<role>_<timestamp>_camera_recording.webm   # video clip → video/ (automatic)
+human_detection_<round>_<role>_<timestamp>_candidate_voice.webm         # voice-only track
+human_detection_<round>_<role>_<timestamp>_transcript.txt               # timestamped live transcript
+human_detection_<round>_<role>_<timestamp>_session.json                 # metadata, scores, answers
 ```
 
 These files can be re-analyzed with the same pipeline, for example:
 
 ```bash
-# run human detection over a recorded interview video
+# run human detection over a recorded interview video (already in video/)
 cd Human_Detection
 python human_detection.py video/human_detection_screening_frontend_<stamp>_camera_recording.webm
 ```
+
+The recorded session files are git-ignored, so recordings never end up in commits.
 
 ## Relation to the web app
 

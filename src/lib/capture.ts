@@ -1,6 +1,7 @@
-// Session capture: camera recording, candidate voice recording, live speech
-// transcript, and storage of all data into the Human_Detection folder (via the
-// File System Access API) with a browser-download fallback.
+// Session capture: camera recording, interview audio (candidate + ZARA), a full
+// two-sided live transcript, and storage of all data into the Human_Detection
+// folder (via the File System Access API). Nothing is ever downloaded — if the
+// folder is unavailable, data is retained safely in the browser (IndexedDB).
 
 export interface TranscriptLine {
   /** ms since capture start */
@@ -143,6 +144,15 @@ export interface DirHandleLike {
   getName: () => Promise<string>
   getFileHandle: (name: string, opts?: { create?: boolean }) => Promise<FileHandleLike>
   getDirectoryHandle: (name: string, opts?: { create?: boolean }) => Promise<DirHandleLike>
+  requestPermission?: (desc?: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>
+}
+
+/** True when the browser can write into a real folder (Chrome / Edge). */
+export function storageSupported(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function'
+  )
 }
 
 let sharedDir: DirHandleLike | null = null
@@ -183,28 +193,69 @@ export interface PickedFile {
   subdir?: string
 }
 
-function downloadBlob(name: string, data: Blob | string): void {
-  const blob = typeof data === 'string' ? new Blob([data], { type: 'text/plain;charset=utf-8' }) : data
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 5000)
+// ---------------------------------------------------------------------------
+// Safe retention — if the folder is unavailable, keep the session data in the
+// browser's secure storage (IndexedDB). Recordings are NEVER downloaded.
+// ---------------------------------------------------------------------------
+const DB_NAME = 'zara_session_store'
+const STORE = 'sessions'
+
+function openStore(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+export async function retainSession(files: PickedFile[]): Promise<boolean> {
+  try {
+    const db = await openStore()
+    const stamp = Date.now()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite')
+      const store = tx.objectStore(STORE)
+      files.forEach((f, i) => {
+        store.put(
+          { name: f.name, data: f.data, savedAt: new Date().toISOString() },
+          `${stamp}_${i}_${f.name}`,
+        )
+      })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
- * Writes files to the chosen folder; files with a `subdir` (e.g. the recorded
- * video clips) land in that subfolder, which is created automatically if it
- * does not exist. Falls back to browser downloads if no folder is chosen or
- * the folder became unavailable.
+ * Writes session files straight into the chosen Human_Detection folder
+ * (video clips land in the video/ subfolder, created automatically).
+ * Nothing is ever downloaded. If the folder is unavailable (permission
+ * revoked / folder removed), the data is kept safely in the browser's
+ * secure storage instead so a candidate can never download it.
  */
-export async function saveFiles(files: PickedFile[]): Promise<'folder' | 'downloads'> {
+export async function saveFiles(files: PickedFile[]): Promise<'folder' | 'retained' | 'failed'> {
   const dir = sharedDir
   if (dir) {
     try {
+      // Chrome may require the write permission to be re-confirmed on a later
+      // visit — ask politely, then attempt the write regardless.
+      if (dir.requestPermission) {
+        try {
+          await dir.requestPermission({ mode: 'readwrite' })
+        } catch {
+          /* no gesture available — try the write anyway */
+        }
+      }
       for (const f of files) {
         let target: DirHandleLike = dir
         if (f.subdir) {
@@ -217,11 +268,10 @@ export async function saveFiles(files: PickedFile[]): Promise<'folder' | 'downlo
       }
       return 'folder'
     } catch {
-      // permission lost / folder removed — fall through to downloads
+      // fall through to safe in-browser retention — never a download
     }
   }
-  for (const f of files) downloadBlob(f.name, f.data)
-  return 'downloads'
+  return (await retainSession(files)) ? 'retained' : 'failed'
 }
 
 export function fileStamp(d = new Date()): string {

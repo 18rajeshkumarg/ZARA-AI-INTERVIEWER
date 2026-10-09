@@ -122,13 +122,31 @@ export default defineConfig([
     ├── index.css                  # Global styles, Tailwind setup, fonts, and effects
     ├── main.tsx                   # React application entry point
     ├── components/
-    │   ├── Landing.tsx             # Product landing page and role/candidate picker
-    │   ├── InterviewRoom.tsx       # Guided interview and live scoring experience
+    │   ├── Landing.tsx             # Product landing page, nav, and role/candidate picker
+    │   ├── InterviewRoom.tsx       # Guided interview, live scoring, and proctoring
     │   └── Report.tsx              # Score summary, feedback, and report export
     ├── lib/
     │   └── interview.ts            # Candidate, role, question, answer, and scoring data
     └── assets/                     # Static application assets
+    Human_Detection/
+    ├── human_detection.py          # YOLOv8 humans-only video analyzer (Python/OpenCV)
+    ├── requirements.txt            # Python dependencies
+    └── video/                      # Place the input video (humans.mp4) here
     ```
+
+    ## Interview Proctoring
+
+    The live interview enforces a proctored session in `src/components/InterviewRoom.tsx`:
+
+    - The **camera must be on** for the whole interview; the session will not start without it.
+    - The interview **auto-terminates** when the candidate switches tabs/windows, loses focus, captures the screen (PrintScreen / snipping shortcuts), turns the camera off, or when the **AI vision** scan sees **0 people** (candidate left) or **2+ people** (someone else present) on consecutive frames.
+    - A violation freezes the session, stops the camera, captures a still frame as evidence, and shows the termination reason.
+
+    Person detection runs **100% in the browser** (TensorFlow.js COCO-SSD, `person` class — loaded on demand from CDN), so the static GitHub Pages deployment needs no backend. If the detector cannot load, the interview continues with the remaining proctoring checks.
+
+    ## Human_Detection (offline Python vision)
+
+    [`Human_Detection/`](Human_Detection/) contains the standalone YOLOv8 pipeline for offline video analysis — bounding boxes, live FPS overlay, `output.mp4`, and `detections.csv`. It counts **humans only** via `classes=[0]`. See [Human_Detection/README.md](Human_Detection/README.md) for setup and usage.
 
     ## Customising The Demo
 

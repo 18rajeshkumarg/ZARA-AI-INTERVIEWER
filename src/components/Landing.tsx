@@ -76,9 +76,9 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
           <a
             href="https://roles-backend.onrender.com/"
             className="font-mono2 text-[11px] uppercase tracking-[0.22em] text-ink/70 hover:text-zara transition-colors"
-            title="Open Roles"
+            title="Hired Employees"
           >
-            Roles
+            HIRED EMPLOYEES
           </a>
         </div>
       </header>

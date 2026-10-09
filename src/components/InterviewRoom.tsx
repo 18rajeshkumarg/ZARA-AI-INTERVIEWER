@@ -15,6 +15,63 @@ export interface AnswerRecord {
 
 const ROLE0 = roles[0]
 
+// ----- in-browser person detection (YOLO-style, COCO "person" class) -----
+// TensorFlow.js + COCO-SSD are loaded from a CDN at runtime, so the app stays
+// a lean static bundle that deploys straight to GitHub Pages.
+const TFJS_SCRIPT = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
+const COCO_SSD_SCRIPT = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'
+const PERSON_MIN_SCORE = 0.5
+const DETECT_INTERVAL_MS = 1000
+const DETECT_SETTLE_MS = 2000
+// A violation must be seen on this many consecutive scans before we stop the
+// interview — one blurry/occluded frame never terminates a real candidate.
+const CONFIRM_SCANS = 2
+
+interface DetectionBox {
+  class: string
+  score: number
+  bbox: [number, number, number, number]
+}
+
+interface PersonDetector {
+  detect(video: HTMLVideoElement): Promise<DetectionBox[]>
+}
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`)
+    if (existing) {
+      if (existing.dataset.loaded === 'true') {
+        resolve()
+        return
+      }
+      existing.addEventListener('load', () => resolve())
+      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)))
+      return
+    }
+    const el = document.createElement('script')
+    el.src = src
+    el.async = true
+    el.onload = () => {
+      el.dataset.loaded = 'true'
+      resolve()
+    }
+    el.onerror = () => {
+      el.remove()
+      reject(new Error(`Failed to load ${src}`))
+    }
+    document.head.appendChild(el)
+  })
+}
+
+async function loadPersonDetector(): Promise<PersonDetector> {
+  await loadScript(TFJS_SCRIPT)
+  await loadScript(COCO_SSD_SCRIPT)
+  const cocoSsd = (window as unknown as { cocoSsd?: { load: (opts: { base: string }) => Promise<PersonDetector> } }).cocoSsd
+  if (!cocoSsd) throw new Error('COCO-SSD unavailable')
+  return cocoSsd.load({ base: 'lite_mobilenet_v2' })
+}
+
 export default function InterviewRoom({
   roleIdx,
   candIdx,
@@ -37,6 +94,8 @@ export default function InterviewRoom({
   const [history, setHistory] = useState<AnswerRecord[]>([])
   const [wave, setWave] = useState<number[]>(() => Array.from({ length: 24 }, () => 8))
   const [camStatus, setCamStatus] = useState<'starting' | 'live' | 'denied'>('starting')
+  const [peopleCount, setPeopleCount] = useState<number | null>(null)
+  const [visionStatus, setVisionStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [violation, setViolation] = useState<string | null>(null)
   const [violationAt, setViolationAt] = useState<string | null>(null)
   const [evidence, setEvidence] = useState<string | null>(null)
@@ -46,6 +105,7 @@ export default function InterviewRoom({
   const streamRef = useRef<MediaStream | null>(null)
   const camRunRef = useRef(0)
   const stoppedRef = useRef(false)
+  const detectorPromiseRef = useRef<Promise<PersonDetector> | null>(null)
 
   const question = role.questions[qi]
 
@@ -194,6 +254,72 @@ export default function InterviewRoom({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camStatus])
+
+  // ----- AI vision: live person counting (YOLO-style detection) ----------
+  // Scans the camera about once per second. If the candidate leaves the frame
+  // (0 people) or a second person shows up (2+ people) on several consecutive
+  // scans, the interview is terminated on the spot. If the detector cannot be
+  // loaded (offline / blocked CDN) the interview continues with the rest of
+  // the proctoring (tab switch, screenshot, camera-off).
+  useEffect(() => {
+    if (camStatus !== 'live' || violation) return
+    let cancelled = false
+    let busy = false
+    let failed = false
+    let readyAt = 0
+    let zeroStreak = 0
+    let manyStreak = 0
+
+    const getDetector = () => {
+      if (!detectorPromiseRef.current) detectorPromiseRef.current = loadPersonDetector()
+      return detectorPromiseRef.current
+    }
+
+    const scan = async () => {
+      if (cancelled || failed || stoppedRef.current || busy) return
+      const video = videoRef.current
+      if (!video || !video.videoWidth) return
+      busy = true
+      try {
+        const detector = await getDetector()
+        const predictions = await detector.detect(video)
+        if (cancelled || stoppedRef.current) return
+
+        const people = predictions.filter((p) => p.class === 'person' && p.score >= PERSON_MIN_SCORE).length
+        if (!readyAt) {
+          readyAt = Date.now()
+          setVisionStatus('ready')
+        }
+        setPeopleCount(people)
+
+        // Settle time while the model warms up — never a violation.
+        if (Date.now() - readyAt < DETECT_SETTLE_MS) return
+
+        if (people === 0) zeroStreak += 1
+        else zeroStreak = 0
+        if (people >= 2) manyStreak += 1
+        else manyStreak = 0
+
+        if (zeroStreak >= CONFIRM_SCANS) terminate('No person visible in the camera')
+        if (manyStreak >= CONFIRM_SCANS) terminate('More than one person detected in the camera')
+      } catch {
+        if (cancelled || stoppedRef.current) return
+        failed = true
+        setVisionStatus('unavailable')
+        setPeopleCount(null)
+      } finally {
+        busy = false
+      }
+    }
+
+    void scan()
+    const id = window.setInterval(() => void scan(), DETECT_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camStatus, violation])
 
   // Live waveform animation (frozen once the interview is terminated)
   useEffect(() => {
@@ -418,8 +544,29 @@ export default function InterviewRoom({
               muted
               className="mt-3 aspect-video w-full -scale-x-100 rounded border border-white/10 bg-black object-cover"
             />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="border border-white/15 px-2 py-1 font-mono2 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                People:{' '}
+                <span className="font-bold text-zara">{peopleCount === null ? '—' : peopleCount}</span>
+              </span>
+              <span
+                className={`font-mono2 text-[9px] uppercase tracking-[0.14em] ${
+                  visionStatus === 'ready'
+                    ? 'text-emerald-400'
+                    : visionStatus === 'unavailable'
+                      ? 'text-amber-400'
+                      : 'text-white/45'
+                }`}
+              >
+                {visionStatus === 'ready'
+                  ? 'AI vision: scanning'
+                  : visionStatus === 'unavailable'
+                    ? 'AI vision: unavailable'
+                    : 'AI vision: loading…'}
+              </span>
+            </div>
             <p className="mt-2 font-mono2 text-[9px] leading-relaxed uppercase tracking-[0.12em] text-white/40">
-              Proctored session — switching tabs or capturing the screen stops the interview instantly.
+              Proctored session — switching tabs, capturing the screen, or 0 / 2+ people on camera stops the interview instantly.
             </p>
           </div>
 

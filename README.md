@@ -49,8 +49,8 @@ Human_Detection/human_detection_<round>_<role>_<timestamp>_transcript.txt       
 Human_Detection/human_detection_<round>_<role>_<timestamp>_session.json                   # metadata, scores, answers
 ```
 
-- Press **Choose Human_Detection folder** at the start of the interview and pick this repository's `Human_Detection/` folder once — every round then saves directly into it, with the **video clip landing in `Human_Detection/video/` automatically** (Chrome/Edge, File System Access API).
-- If no folder is chosen (or the browser does not support the picker, e.g. Firefox), the four files are downloaded automatically — move the `*_camera_recording.webm` clip into `Human_Detection/video/` and the rest into `Human_Detection/`.
+- Storage is **fully automatic**: the first time you start an interview (Chrome/Edge), a one-time folder picker opens as part of the Interview click — pick this repository's `Human_Detection/` folder once. The folder is then remembered, and **every later interview auto-saves silently** with no prompt (video clip → `video/`).
+- If no folder is available (e.g. a browser without folder support), the session data is kept **safily in the browser's secure storage** — it is never downloaded to the candidate's device.
 - The transcript and metadata also feed the offline Python tooling in [`Human_Detection/`](Human_Detection/) for further analysis.
 - Recorded session files are git-ignored, so recordings never end up in commits.
 

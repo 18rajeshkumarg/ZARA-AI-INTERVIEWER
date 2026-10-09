@@ -199,13 +199,16 @@ export interface PickedFile {
 // ---------------------------------------------------------------------------
 const DB_NAME = 'zara_session_store'
 const STORE = 'sessions'
+const HANDLE_STORE = 'handles'
+const HANDLE_KEY = 'human_detection_dir'
 
 function openStore(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1)
+    const req = indexedDB.open(DB_NAME, 2)
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
+      if (!db.objectStoreNames.contains(HANDLE_STORE)) db.createObjectStore(HANDLE_STORE)
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -233,6 +236,91 @@ export async function retainSession(files: PickedFile[]): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Automatic storage provisioning — the Human_Detection folder is picked once
+// (during the very first "Interview" click) and the handle is persisted, so
+// every later interview auto-saves silently with no prompt for the candidate.
+// ---------------------------------------------------------------------------
+async function saveDirHandle(handle: DirHandleLike): Promise<void> {
+  try {
+    const db = await openStore()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE, 'readwrite')
+      tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  } catch {
+    /* ignore — provisioning still works for this session */
+  }
+}
+
+async function loadDirHandle(): Promise<DirHandleLike | null> {
+  try {
+    const db = await openStore()
+    const handle = await new Promise<DirHandleLike | null>((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE, 'readonly')
+      const req = tx.objectStore(HANDLE_STORE).get(HANDLE_KEY)
+      req.onsuccess = () => resolve((req.result as DirHandleLike | undefined) ?? null)
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+    return handle
+  } catch {
+    return null
+  }
+}
+
+async function adoptDirHandle(handle: DirHandleLike): Promise<DirHandleLike> {
+  sharedDir = handle
+  try {
+    sharedDirName = await handle.getName()
+  } catch {
+    sharedDirName = 'Human_Detection'
+  }
+  return handle
+}
+
+/**
+ * Make sure the Human_Detection folder is ready — silently restores a
+ * previously-granted folder, or (only the very first time, during the
+ * candidate's "Interview" click) opens the one-time folder picker. Returns
+ * the handle, or null if unavailable/cancelled (the interview still runs and
+ * retains data safely in the browser instead).
+ */
+export async function provisionStorage(): Promise<DirHandleLike | null> {
+  if (sharedDir) return sharedDir
+
+  // 1. Silently restore a folder that was granted before.
+  const persisted = await loadDirHandle()
+  if (persisted) {
+    await adoptDirHandle(persisted)
+    try {
+      await persisted.requestPermission?.({ mode: 'readwrite' })
+    } catch {
+      /* best effort — write will still be attempted */
+    }
+    return persisted
+  }
+
+  // 2. First ever run — open the picker (must happen inside a user gesture).
+  if (!storageSupported()) return null
+  const fn = (window as unknown as {
+    showDirectoryPicker?: (opts?: { mode?: 'read' | 'readwrite' }) => Promise<DirHandleLike>
+  }).showDirectoryPicker
+  if (!fn) return null
+  try {
+    const handle = await fn({ mode: 'readwrite' })
+    await adoptDirHandle(handle)
+    await saveDirHandle(handle)
+    return handle
+  } catch {
+    return null // cancelled or unsupported
   }
 }
 

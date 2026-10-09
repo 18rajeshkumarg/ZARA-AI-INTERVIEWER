@@ -3,6 +3,7 @@ import Landing from './components/Landing'
 import InterviewRoom, { type AnswerRecord } from './components/InterviewRoom'
 import FinalRound from './components/FinalRound'
 import Report from './components/Report'
+import { provisionStorage } from './lib/capture'
 
 // Flow: landing → screening round (online) → real interview (online)
 //       → final round is offline one-on-one → report.
@@ -17,9 +18,13 @@ export default function App() {
     if (typeof window !== 'undefined') window.scrollTo(0, 0)
   }
 
-  const start = (role: number) => {
+  const start = async (role: number) => {
     setRoleIdx(role)
     setAnswers([])
+    // Provision the Human_Detection folder silently. The very first run opens
+    // the one-time folder picker (inside this click); afterwards it restores
+    // automatically so the candidate never sees a prompt again.
+    await provisionStorage()
     setStage('screening')
     scrollTop()
   }

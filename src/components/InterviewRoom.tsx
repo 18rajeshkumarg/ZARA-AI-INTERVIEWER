@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, Volume2, SkipForward, X, Camera, ShieldAlert, ArrowLeft, FolderOpen, HardDrive, ShieldCheck } from 'lucide-react'
+import { Mic, Volume2, SkipForward, X, Camera, ShieldAlert, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { roles, screeningQuestions, type ScoreMap, type Question } from '../lib/interview'
 import {
   startCapture,
   speak,
   stopSpeaking,
   saveFiles,
-  pickDirectory,
-  getSharedDir,
   getSharedDirName,
-  storageSupported,
   formatClock,
   fileStamp,
   speechRecognitionSupported,
@@ -123,11 +120,8 @@ export default function InterviewRoom({
   const [lines, setLines] = useState<TranscriptLine[]>([])
   const [interim, setInterim] = useState('')
   const [recSec, setRecSec] = useState(0)
-  const [dirLabel, setDirLabel] = useState<string | null>(() => getSharedDirName())
+  const dirLabel = getSharedDirName()
   const [savedTo, setSavedTo] = useState<string | null>(null)
-  // The interview only runs once the Human_Detection folder is chosen —
-  // recordings are stored safely there and are never downloaded.
-  const [armed, setArmed] = useState<boolean>(() => Boolean(getSharedDir()) && storageSupported())
 
   const doneRef = useRef(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -335,10 +329,8 @@ export default function InterviewRoom({
     void acquireCamera()
   }
 
-  // Camera + mic start only once the Human_Detection folder is armed, so a
-  // recording can always be stored safely there (never downloaded).
+  // Camera + mic must be on for the whole interview — start them on mount.
   useEffect(() => {
-    if (!armed) return
     const kickoff = window.setTimeout(() => { void acquireCamera() }, 0)
     return () => {
       window.clearTimeout(kickoff)
@@ -348,7 +340,7 @@ export default function InterviewRoom({
       stopCamera()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [armed])
+  }, [])
 
   // Re-attach the stream if the <video> element re-renders.
   useEffect(() => {
@@ -618,19 +610,6 @@ export default function InterviewRoom({
     onHome()
   }
 
-  const pickFolder = async () => {
-    const handle = await pickDirectory()
-    if (handle) {
-      try {
-        setDirLabel(await handle.getName())
-      } catch {
-        setDirLabel('Human_Detection')
-      }
-      // Folder chosen — arm the interview so the camera and recording start.
-      setArmed(true)
-    }
-  }
-
   const liveScore = (key: keyof ScoreMap) => {
     const total = questions.length * 20
     const v = scores[key] ?? 0
@@ -733,16 +712,9 @@ export default function InterviewRoom({
                   <li>5. Answer in your own voice — every word is transcribed live — or tap an option on screen.</li>
                 </ol>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void pickFolder()}
-                    className="inline-flex items-center gap-2 border border-white/25 px-4 py-2 font-mono2 text-[10px] uppercase tracking-[0.16em] text-white/80 hover:border-zara hover:text-zara transition-colors"
-                  >
-                    <FolderOpen className="h-3.5 w-3.5" /> Change folder
-                  </button>
                   <span className="inline-flex items-center gap-1.5 font-mono2 text-[10px] tracking-[0.1em] text-emerald-400">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    {storedDir ? `Recording to Human_Detection/${storedDir}/ (video clip → video/) — never downloaded` : 'Folder required'}
+                    {storedDir ? `Auto-saving to Human_Detection/${storedDir}/ (video clip → video/)` : 'Auto-saving to Human_Detection/'}
                   </span>
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-sm text-white/70">
@@ -971,59 +943,8 @@ export default function InterviewRoom({
         </aside>
       </main>
 
-      {/* Storage gate — the Human_Detection folder must be chosen first so
-          recordings are stored safely there and never downloaded. */}
-      {!armed && !violation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/92 p-5 backdrop-blur-sm">
-          <div className="w-full max-w-md border border-white/15 bg-[#121216] p-6 text-center">
-            {storageSupported() ? (
-              <>
-                <FolderOpen className="mx-auto h-9 w-9 text-zara" />
-                <h2 className="mt-4 text-xl font-black tracking-tight">Choose your storage folder</h2>
-                <p className="mt-2 text-sm leading-relaxed text-white/60">
-                  Before the interview starts, pick this project's <strong className="text-white">Human_Detection</strong> folder once.
-                  Every recording (camera video, both voices, transcript and metadata) is saved there automatically —
-                  nothing is ever downloaded to your device.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void pickFolder()}
-                  className="mt-5 inline-flex items-center gap-2 bg-zara px-5 py-2.5 font-mono2 text-[11px] uppercase tracking-[0.2em] text-white hover:bg-white hover:text-ink transition-colors"
-                >
-                  <FolderOpen className="h-4 w-4" /> Choose Human_Detection folder
-                </button>
-                <button
-                  type="button"
-                  onClick={onHome}
-                  className="mt-3 inline-flex items-center gap-2 text-white/50 hover:text-zara font-mono2 text-[10px] uppercase tracking-[0.16em]"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" /> Return home
-                </button>
-              </>
-            ) : (
-              <>
-                <HardDrive className="mx-auto h-9 w-9 text-amber-400" />
-                <h2 className="mt-4 text-xl font-black tracking-tight">Chrome or Edge required</h2>
-                <p className="mt-2 text-sm leading-relaxed text-white/60">
-                  This interview records the session and stores it safely in the Human_Detection folder.
-                  Your browser cannot write to a folder, and recordings are <strong className="text-white">never downloaded</strong> —
-                  so please open the interview in <strong className="text-white">Google Chrome</strong> or <strong className="text-white">Microsoft Edge</strong> to continue.
-                </p>
-                <button
-                  type="button"
-                  onClick={onHome}
-                  className="mt-5 inline-flex items-center gap-2 bg-white px-5 py-2.5 font-mono2 text-[11px] uppercase tracking-[0.2em] text-ink hover:bg-zara hover:text-white transition-colors"
-                >
-                  <ArrowLeft className="h-4 w-4" /> Return home
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Camera required — the interview will not run without a live feed */}
-      {armed && camStatus !== 'live' && !violation && (
+      {camStatus !== 'live' && !violation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-5 backdrop-blur-sm">
           <div className="w-full max-w-md border border-white/15 bg-[#121216] p-6 text-center">
             <Camera className="mx-auto h-9 w-9 text-zara" />

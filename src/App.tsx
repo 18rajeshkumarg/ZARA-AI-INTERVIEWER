@@ -19,6 +19,11 @@ export default function App() {
     if (typeof window !== 'undefined') window.scrollTo(0, 0)
   }
 
+  const goHome = () => {
+    setStage('landing')
+    if (typeof window !== 'undefined') window.scrollTo(0, 0)
+  }
+
   return (
     <>
       {stage === 'landing' && <Landing onStart={start} onPick={(r, c) => start(r, c)} />}
@@ -26,7 +31,8 @@ export default function App() {
         <InterviewRoom
           roleIdx={roleIdx}
           candIdx={candIdx}
-          onExit={() => setStage('landing')}
+          onExit={goHome}
+          onHome={goHome}
           onFinish={(a) => {
             setAnswers(a)
             setStage('report')
@@ -39,7 +45,8 @@ export default function App() {
           roleIdx={roleIdx}
           candIdx={candIdx}
           answers={answers}
-          onRestart={() => setStage('landing')}
+          onRestart={goHome}
+          onHome={goHome}
         />
       )}
     </>

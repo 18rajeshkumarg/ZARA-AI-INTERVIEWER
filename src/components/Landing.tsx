@@ -60,14 +60,26 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
       {/* Nav */}
       <header className="sticky top-0 z-40 border-b border-ink/10 bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex cursor-pointer items-center gap-3 text-left"
+            aria-label="Go to home page"
+            title="Home"
+          >
             <img src={brandLogo} alt="Indicasoftware The TechHub Platform" className="brand-logo-small brand-logo" />
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black tracking-tight text-zara">ZARA</span>
               <span className="font-mono2 text-[11px] uppercase tracking-[0.28em] text-ink/60">AI Interview</span>
             </div>
-          </div>
-          <a href="#roles" className="font-mono2 text-[11px] uppercase tracking-[0.22em] text-ink/70 hover:text-zara transition-colors">Roles</a>
+          </button>
+          <a
+            href="https://roles-backend.onrender.com/"
+            className="font-mono2 text-[11px] uppercase tracking-[0.22em] text-ink/70 hover:text-zara transition-colors"
+            title="Open Roles"
+          >
+            Roles
+          </a>
         </div>
       </header>
 
@@ -236,10 +248,16 @@ export default function Landing({ onStart, onPick }: { onStart: (role: number, c
 
       <footer className="bg-ink text-paper">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-8">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex cursor-pointer items-center gap-3"
+            aria-label="Go to home page"
+            title="Home"
+          >
             <img src={brandLogo} alt="Indicasoftware The TechHub Platform" className="brand-logo-small" />
             <span className="text-2xl font-black tracking-tight text-zara">ZARA</span>
-          </div>
+          </button>
           <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-paper/50">© 2025 Indica Software All rights reserved. Indica Software AI structured interviews · GLOBAL ENVIRONMENT</p>
         </div>
       </footer>

@@ -167,4 +167,4 @@ The project is live on GitHub Pages at:
 
 The deployment is automated by [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` installs the locked dependencies, builds the Vite site, and publishes the generated `dist/` directory to GitHub Pages.
 
-The current deployment has completed successfully, with both the `build` and `deploy` jobs passing.
+If the live URL ever returns **404**, check **Settings → Pages** and make sure the source is set to **GitHub Actions**. Once Pages is enabled, re-run the `Deploy to GitHub Pages` workflow (or push to `main`) and the site will be published.

@@ -18,15 +18,16 @@ import {
 
 const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
 
+export type InterviewRound = 'screening' | 'final'
+
 export interface AnswerRecord {
+  round: InterviewRound
   q: string
   text: string
   feedback: string
   scores: ScoreMap
   kw: string[]
 }
-
-export type InterviewRound = 'screening' | 'final'
 
 const ROLE0 = roles[0]
 
@@ -142,9 +143,13 @@ export default function InterviewRoom({
   /** Append a transcript line (to the live UI and to the saved capture). */
   const note = (kind: TranscriptLine['kind'], text: string) => {
     const cap = captureRef.current
-    const line: TranscriptLine = cap
-      ? cap.addLine(kind, text)
-      : { t: Date.now() - (startedAtRef.current ?? Date.now()), kind, text }
+    if (cap) {
+      // capture.addLine already forwards the line to onLine, which updates
+      // linesRef and the UI — do not append it a second time here.
+      cap.addLine(kind, text)
+      return
+    }
+    const line: TranscriptLine = { t: Date.now() - (startedAtRef.current ?? Date.now()), kind, text }
     linesRef.current = [...linesRef.current, line]
     setLines(linesRef.current)
   }
@@ -297,30 +302,50 @@ export default function InterviewRoom({
   const acquireCamera = async () => {
     const run = ++camRunRef.current
     streamRef.current?.getTracks().forEach((t) => t.stop())
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: { echoCancellation: true, noiseSuppression: true },
-      })
-      if (run !== camRunRef.current || stoppedRef.current) {
-        stream.getTracks().forEach((t) => t.stop())
-        return
-      }
-      streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
-      const onEnded = (reason: string) => {
-        if (run === camRunRef.current && !stoppedRef.current) terminate(reason)
-      }
-      stream.getVideoTracks().forEach((track) => {
-        track.addEventListener('ended', () => onEnded('Camera was turned off or blocked'))
-      })
-      stream.getAudioTracks().forEach((track) => {
-        track.addEventListener('ended', () => onEnded('Microphone was turned off'))
-      })
-      setCamStatus('live')
-    } catch {
-      if (run === camRunRef.current && !stoppedRef.current) setCamStatus('denied')
+
+    const constraints: MediaStreamConstraints = {
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: { echoCancellation: true, noiseSuppression: true },
     }
+
+    // Moving from the screening round to the real interview unmounts one
+    // InterviewRoom and mounts the next almost instantly. Some devices need a
+    // moment to release the old stream, so retry a couple of times instead of
+    // stranding the candidate on the "camera required" screen.
+    let stream: MediaStream | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints)
+        break
+      } catch (err) {
+        const name = err instanceof DOMException ? err.name : ''
+        // A real denial will not fix itself — stop immediately.
+        if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') break
+        if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)))
+        if (run !== camRunRef.current || stoppedRef.current) return
+      }
+    }
+
+    if (!stream) {
+      if (run === camRunRef.current && !stoppedRef.current) setCamStatus('denied')
+      return
+    }
+    if (run !== camRunRef.current || stoppedRef.current) {
+      stream.getTracks().forEach((t) => t.stop())
+      return
+    }
+    streamRef.current = stream
+    if (videoRef.current) videoRef.current.srcObject = stream
+    const onEnded = (reason: string) => {
+      if (run === camRunRef.current && !stoppedRef.current) terminate(reason)
+    }
+    stream.getVideoTracks().forEach((track) => {
+      track.addEventListener('ended', () => onEnded('Camera was turned off or blocked'))
+    })
+    stream.getAudioTracks().forEach((track) => {
+      track.addEventListener('ended', () => onEnded('Microphone was turned off'))
+    })
+    setCamStatus('live')
   }
 
   // Manual retry from the "camera required" screen (event handler, not an effect).
@@ -568,7 +593,14 @@ export default function InterviewRoom({
   const beginFeedback = (ansIdx: number) => {
     if (stoppedRef.current) return
     const ans = question.answers[ansIdx]
-    const rec: AnswerRecord = { q: question.q, text: ans.text, feedback: ans.feedback, scores: ans.scores, kw: ans.kw }
+    const rec: AnswerRecord = {
+      round,
+      q: question.q,
+      text: ans.text,
+      feedback: ans.feedback,
+      scores: ans.scores,
+      kw: ans.kw,
+    }
     const nh = [...history, rec]
     historyRef.current = nh
     setHistory(nh)

@@ -12,6 +12,7 @@ type Stage = 'landing' | 'screening' | 'final' | 'offline' | 'report'
 export default function App() {
   const [stage, setStage] = useState<Stage>('landing')
   const [roleIdx, setRoleIdx] = useState(0)
+  const [screeningAnswers, setScreeningAnswers] = useState<AnswerRecord[]>([])
   const [answers, setAnswers] = useState<AnswerRecord[]>([])
 
   const scrollTop = () => {
@@ -20,6 +21,7 @@ export default function App() {
 
   const start = async (role: number) => {
     setRoleIdx(role)
+    setScreeningAnswers([])
     setAnswers([])
     // Provision the Human_Detection folder silently. The very first run opens
     // the one-time folder picker (inside this click); afterwards it restores
@@ -31,6 +33,7 @@ export default function App() {
 
   const goHome = () => {
     setStage('landing')
+    setScreeningAnswers([])
     setAnswers([])
     scrollTop()
   }
@@ -45,8 +48,10 @@ export default function App() {
           round="screening"
           onExit={goHome}
           onHome={goHome}
-          onFinish={() => {
-            // Screening done — proceed to the real interview.
+          onFinish={(a) => {
+            // Keep the screening answers so the final report covers both
+            // online rounds, then proceed to the real interview.
+            setScreeningAnswers(a)
             setStage('final')
             scrollTop()
           }}
@@ -60,8 +65,9 @@ export default function App() {
           onExit={goHome}
           onHome={goHome}
           onFinish={(a) => {
-            // Real interview done — announce the offline final round.
-            setAnswers(a)
+            // Real interview done — combine both online rounds for the report
+            // and announce the offline final round.
+            setAnswers([...screeningAnswers, ...a])
             setStage('offline')
             scrollTop()
           }}

@@ -19,7 +19,10 @@ export default function Report({
 }) {
   const role = roles[roleIdx]
 
-  const total = role.questions.length * 20
+  // The report covers both online rounds (screening + real interview), so the
+  // maximum is derived from the answers actually recorded — not just the
+  // role-specific question bank.
+  const total = Math.max(answers.length * 20, 1)
   const overall = useMemo(() => {
     const s = answers.reduce(
       (acc, a) => ({
@@ -63,7 +66,10 @@ export default function Report({
       ...dims.map(([l, v]) => `  ${l}: ${v}`),
       `Keyword coverage: ${kwHits.length}/${role.keywords.length} (${kwHits.join(', ') || 'n/a'})`,
       ``,
-      ...answers.map((a, i) => `Q${i + 1}: ${a.q}\nA: ${a.text}\nFeedback: ${a.feedback}`),
+      ...answers.map(
+        (a, i) =>
+          `${a.round === 'screening' ? 'Screening' : 'Interview'} Q${i + 1}: ${a.q}\nA: ${a.text}\nFeedback: ${a.feedback}`,
+      ),
     ].join('\n')
     const blob = new Blob([lines], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -158,7 +164,9 @@ export default function Report({
               className="border border-ink/15 bg-white"
             >
               <div className="border-b border-ink/10 px-5 py-3">
-                <div className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-zara">Question {i + 1}</div>
+                <div className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-zara">
+                  {a.round === 'screening' ? 'Screening' : 'Real interview'} · Question {i + 1}
+                </div>
                 <div className="mt-1 text-base font-bold leading-snug">{a.q}</div>
               </div>
               <div className="px-5 py-4">

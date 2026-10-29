@@ -47,7 +47,7 @@ function RoleApplication() {
   const { roleId } = useParams()
   const role = titleFor(roleId)
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem('zara_candidate_email') || '')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [mode, setMode] = useState<'signin'|'register'|'verify'|'apply'>('signin')
@@ -56,9 +56,19 @@ function RoleApplication() {
   const [photo, setPhoto] = useState<File | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [apiStatus, setApiStatus] = useState<'checking'|'ready'|'offline'>('checking')
   const [applications, setApplications] = useState<AppItem[]>([])
 
   useEffect(() => { if (!role) navigate('/', { replace: true }) }, [role, navigate])
+  useEffect(() => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 7000)
+    fetch(`${api}/health`, { signal: controller.signal })
+      .then((response) => setApiStatus(response.ok ? 'ready' : 'offline'))
+      .catch(() => setApiStatus('offline'))
+      .finally(() => window.clearTimeout(timeout))
+    return () => { window.clearTimeout(timeout); controller.abort() }
+  }, [])
   useEffect(() => {
     if (!token) return
     let active = true
@@ -86,16 +96,16 @@ function RoleApplication() {
   const sendAuth = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setMessage('')
     try {
-      if (mode === 'register') { await request('/auth/register', { email, password }); setMode('verify'); setMessage('A verification code was sent to your email.') }
-      else if (mode === 'verify') { const data = await request('/auth/verify-email', { email, code }); localStorage.setItem('zara_candidate_token', data.token); setToken(data.token); setMode('apply') }
-      else { const data = await request('/auth/login', { email, password }); localStorage.setItem('zara_candidate_token', data.token); setToken(data.token); setMode('apply') }
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Request failed.') }
+      if (mode === 'register') { await request('/auth/register', { email, password }); localStorage.setItem('zara_candidate_email', email); setMode('verify'); setMessage('A verification code was sent to your email.') }
+      else if (mode === 'verify') { const data = await request('/auth/verify-email', { email, code }); localStorage.setItem('zara_candidate_token', data.token); localStorage.setItem('zara_candidate_email', data.email || email); setEmail(data.email || email); setToken(data.token); setMode('apply') }
+      else { const data = await request('/auth/login', { email, password }); localStorage.setItem('zara_candidate_token', data.token); localStorage.setItem('zara_candidate_email', data.email || email); setEmail(data.email || email); setToken(data.token); setMode('apply') }
+    } catch (error) { setMessage(error instanceof TypeError ? `Cannot reach the authentication API at ${api}. The backend must be deployed and its PostgreSQL, SMTP, and CORS settings must be configured.` : error instanceof Error ? error.message : 'Request failed.') }
     finally { setBusy(false) }
   }
   const resendCode = async () => {
     setBusy(true); setMessage('')
     try { const data = await request('/auth/resend-code', { email }); setMessage(data.message) }
-    catch (error) { setMessage(error instanceof Error ? error.message : 'Could not resend code.') }
+    catch (error) { setMessage(error instanceof TypeError ? `Cannot reach the authentication API at ${api}.` : error instanceof Error ? error.message : 'Could not resend code.') }
     finally { setBusy(false) }
   }
   const submitApplication = async (event: FormEvent) => {
@@ -110,15 +120,16 @@ function RoleApplication() {
       if (!response.ok) throw new Error(data.error || 'Application could not be submitted.')
       const list = await fetch(`${api}/applications/mine`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json())
       setApplications(list.applications); setProfile(blankProfile); setPhoto(null); setMessage(`Application ${data.id} submitted successfully.`)
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Application failed.') }
+    } catch (error) { setMessage(error instanceof TypeError ? `Cannot reach the application API at ${api}.` : error instanceof Error ? error.message : 'Application failed.') }
     finally { setBusy(false) }
   }
-  const signOut = () => { localStorage.removeItem('zara_candidate_token'); setToken(''); setApplications([]); setMode('signin') }
+  const signOut = () => { localStorage.removeItem('zara_candidate_token'); localStorage.removeItem('zara_candidate_email'); setToken(''); setEmail(''); setApplications([]); setMode('signin') }
   const selectedApproved = applications.some((item) => item.role === role && item.status === 'approved')
 
   return <Shell><main className="mx-auto max-w-3xl px-5 py-12"><Link to="/" className="inline-flex items-center gap-2 text-sm text-ink/60 hover:text-zara"><ArrowLeft className="h-4 w-4"/>All roles</Link>
     <section className="mt-5 border border-ink/15 bg-white p-6 sm:p-9"><p className="font-mono2 text-xs uppercase tracking-[.2em] text-zara">Role application</p><h1 className="mt-2 text-3xl font-black sm:text-4xl">{role}</h1>
       {!token && mode !== 'verify' && <><p className="mt-3 text-sm text-ink/65">Sign in or create a verified account to apply. Email and password are used to authenticate your account.</p><div className="mt-6 flex gap-2"><button onClick={()=>{setMode('signin');setMessage('')}} className={`border px-4 py-2 text-sm ${mode==='signin'?'border-zara':'border-ink/20'}`}>Sign in</button><button onClick={()=>{setMode('register');setMessage('')}} className={`border px-4 py-2 text-sm ${mode==='register'?'border-zara':'border-ink/20'}`}>Create account</button></div></>}
+      {apiStatus==='offline'&&<p role="status" className="mt-4 border border-amber-500/40 bg-amber-50 p-3 text-sm">Authentication service is not responding. Sign In and Create Account need the backend API, database, and email verification service to be online.</p>}
       {!token && <form onSubmit={sendAuth} className="mt-5 grid gap-4">{mode==='verify' && <p className="text-sm text-ink/70">Enter the one-time code sent to <b>{email}</b>.</p>}
         {mode!=='verify' && <label className="text-sm font-semibold">Email address<input type="email" autoComplete="email" required value={email} onChange={(e)=>setEmail(e.target.value)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/></label>}
         {mode!=='verify' && <label className="text-sm font-semibold">Password<input type="password" autoComplete={mode==='register'?'new-password':'current-password'} minLength={mode==='register'?10:1} required value={password} onChange={(e)=>setPassword(e.target.value)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/>{mode==='register'&&<small className="font-normal text-ink/55">At least 10 characters.</small>}</label>}

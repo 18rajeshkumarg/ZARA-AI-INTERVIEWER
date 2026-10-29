@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, CalendarDays } from 'lucide-react'
+import { restoreCandidateDirectory, saveCandidateApplication } from '../lib/candidateStorage'
 
 const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
 const companyUrl = 'https://18rajeshkumarg.github.io/indicasoftware/'
@@ -14,7 +15,7 @@ const titleFor = (id: string | undefined) => roles.find((role) => slug(role) ===
 const faqs = [
   ['Which roles are open?', 'Applications are open for the 11 roles listed above. Each role has a separate application page.'],
   ['How do I apply?', 'Create an account in this browser, sign in, then complete the role-specific form and upload a face photo.'],
-  ['Where is my application saved?', 'For this site preview, account and application data are saved in this browser on this device. They are not sent to the hiring team.'],
+  ['Where is my application saved?', 'The candidate text file and photo are saved in the project folder you choose on this computer. The account itself stays in this browser.'],
   ['Can I use my account on another device?', 'No. Preview accounts are stored only in the browser where they were created.'],
   ['When can I access Hired Employees?', 'Hiring status updates are not connected in this browser-only preview.'],
   ['Are virtual interview links ready?', 'This site does not create Zoom meetings. The hiring team must configure the meeting and share its link separately.'],
@@ -40,21 +41,6 @@ async function passwordHash(password: string, saltHex: string) {
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 210000 }, key, 256)
   return toHex(new Uint8Array(bits))
 }
-function saveLocalPhoto(id: string, photo: File): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const open = indexedDB.open('zara_candidate_local_data', 1)
-    open.onupgradeneeded = () => { if (!open.result.objectStoreNames.contains('photos')) open.result.createObjectStore('photos') }
-    open.onerror = () => reject(open.error)
-    open.onsuccess = () => {
-      const db = open.result
-      const transaction = db.transaction('photos', 'readwrite')
-      transaction.objectStore('photos').put(photo, id)
-      transaction.oncomplete = () => { db.close(); resolve() }
-      transaction.onerror = () => { db.close(); reject(transaction.error) }
-    }
-  })
-}
-
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen bg-paper text-ink">
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-paper/90 backdrop-blur"><div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
@@ -89,6 +75,7 @@ function RoleApplication() {
   const [applications, setApplications] = useState<AppItem[]>(() => readApplications(localStorage.getItem('zara_candidate_session') || ''))
 
   useEffect(() => { if (!role) navigate('/', { replace: true }) }, [role, navigate])
+  useEffect(() => { void restoreCandidateDirectory() }, [])
   if (!role) return null
   const update = (key: keyof Profile, value: string) => setProfile((prev) => ({ ...prev, [key]: value }))
   const sendAuth = async (event: FormEvent) => {
@@ -123,13 +110,12 @@ function RoleApplication() {
     try {
       if (!photo) throw new Error('Choose a face photo to continue.')
       if (photo.size > 5 * 1024 * 1024) throw new Error('Photo must be 5 MB or smaller.')
-      const id = `candidate-${crypto.randomUUID()}`
-      await saveLocalPhoto(id, photo)
+      const id = await saveCandidateApplication({ ...profile, email, role, photo })
       const item: AppItem = { id, role, ...profile, email, status: 'pending', createdAt: new Date().toISOString(), round1Completed: false, round2Completed: false, bossRoundInvited: false }
       const updated = [item, ...readApplications(email)]
       localStorage.setItem(accountStorageKey(email), JSON.stringify(updated))
-      setApplications(updated); setMessage(`Application ${id} saved on this device.`)
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save your application on this device.') }
+      setApplications(updated); setMessage('Application submitted successfully.')
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save the application to the selected project folder.') }
     finally { setBusy(false) }
   }
   const signOut = () => { localStorage.removeItem('zara_candidate_session'); setToken(''); setApplications([]); setMode('signin'); setMessage('You have signed out.') }
@@ -153,7 +139,7 @@ function RoleApplication() {
           <label className="text-sm font-semibold">Location<input required value={profile.location} onChange={(e)=>update('location',e.target.value)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/></label>
           <label className="text-sm font-semibold">Face photo<input type="file" required accept="image/jpeg,image/png,image/webp" onChange={(e)=>setPhoto(e.target.files?.[0]||null)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/><small className="font-normal text-ink/55">JPEG, PNG, or WebP · up to 5 MB</small></label>
           <label className="text-sm font-semibold sm:col-span-2">About yourself<textarea required rows={5} maxLength={4000} value={profile.about} onChange={(e)=>update('about',e.target.value)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/></label>
-          <p className="text-xs leading-relaxed text-ink/55 sm:col-span-2">Your application details and photo are saved only in this browser on this device. They are not sent to the hiring team, and this preview does not verify identity.</p>
+          <p className="text-xs leading-relaxed text-ink/55 sm:col-span-2">On first submission, choose the ZARA AI Interview project folder. The application text is saved in Candidates/ and the photo in Uploads/ on this computer. This preview does not verify identity.</p>
           <button disabled={busy} className="w-fit bg-zara px-5 py-3 font-mono2 text-xs uppercase tracking-widest text-white disabled:opacity-50">{busy?'Submitting…':'Submit application'}</button>
         </form>}</>}
       {message&&<p role="status" className="mt-5 border border-ink/15 bg-gray-50 p-3 text-sm">{message}</p>}

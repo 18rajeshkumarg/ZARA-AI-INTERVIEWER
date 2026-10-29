@@ -30,6 +30,7 @@ dist-ssr
 server/data/
 server-data/
 Uploads/
+Candidates/
 
 # Human_Detection (YOLO) generated artifacts
 Human_Detection/yolov8n.pt

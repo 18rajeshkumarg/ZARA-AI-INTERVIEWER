@@ -4,9 +4,9 @@ Role-specific application pages hosted as a static React/Vite site.
 
 ## Sign-in and applications
 
-The current GitHub Pages preview does not call a live API. **Create account** stores a salted PBKDF2 password hash in browser storage, then switches to **Sign in**. Successful sign-in opens the selected role application page. Application details are kept in that browser's local storage, and the uploaded photo is kept in IndexedDB on that device.
+The current GitHub Pages preview does not call a live API. **Create account** stores a salted PBKDF2 password hash in browser storage, then switches to **Sign in**. Successful sign-in opens the selected role application page. On first application submission, the browser asks the candidate to select a local project folder; it then writes a numbered text file under `Candidates/` and the photo under `Uploads/`.
 
-This is a browser-only preview: accounts and applications do not sync to other devices or reach the hiring team. Clearing browser site data removes them. Do not use this mode for confidential candidate records or as production authentication.
+Accounts remain in the browser where they were created and do not sync to other devices. Candidate files are written only to the folder selected by the person using the browser. They are not sent to a shared server or to the hiring team. Do not use this mode for confidential candidate records or as production authentication.
 
 The unused `server/` folder contains an optional Express/PostgreSQL API prototype. It is not called by the current static-site sign-in or application flow.
 

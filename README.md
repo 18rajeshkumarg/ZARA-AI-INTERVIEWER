@@ -1,51 +1,26 @@
 # ZARA AI Interviewer
 
-Role-specific candidate applications with an authenticated API and administrator-controlled interview progression. The frontend is a static React/Vite site. Candidate records are written by the API process to its own persistent data directory; a public GitHub Pages browser cannot write into the repository checkout.
+Role-specific application pages hosted as a static React/Vite site.
 
-## Candidate journey
+## Sign-in and applications
 
-1. Choose a role from the home page. Each role has its own route, for example `#/apply/ai-developer`.
-2. Create an account with email and password, then verify the email with a one-time code.
-3. Submit the role application with mandatory name, email, phone, work experience, location, about text, and a face photo.
-4. An administrator marks Round 1 and then Round 2 complete. Only after both are complete does the candidate screen show the Boss Round section.
-5. An administrator invites the candidate to the Boss Round and marks the candidate approved after the interview. Only approved candidates see the **HIRED EMPLOYEE** link.
+The current GitHub Pages preview does not call a live API. **Create account** stores a salted PBKDF2 password hash in browser storage, then switches to **Sign in**. Successful sign-in opens the selected role application page. Application details are kept in that browser's local storage, and the uploaded photo is kept in IndexedDB on that device.
 
-The photo is stored as an application attachment; the service does not perform facial recognition or identity matching. Zoom meeting creation is not integrated.
+This is a browser-only preview: accounts and applications do not sync to other devices or reach the hiring team. Clearing browser site data removes them. Do not use this mode for confidential candidate records or as production authentication.
 
-## Backend storage and access
+The unused `server/` folder contains an optional Express/PostgreSQL API prototype. It is not called by the current static-site sign-in or application flow.
 
-The Express API uses PostgreSQL for candidate accounts, applications, approval states, and activity events. Passwords are bcrypt-hashed. Email verification codes expire after 10 minutes. Application photos are limited to 5 MB and checked for JPEG, PNG, or WebP signatures. Administrator routes require a separate short-lived JWT.
+## Run locally
 
-Each application writes files on the **backend host**:
+Requirements: Node.js 20+ and npm.
 
-```text
-server/data/Candidates/candidate-000001.txt
-server/data/Uploads/candidate-000001.jpg
+```sh
+npm ci
+npm run dev
 ```
 
-The actual data directory is configurable with `DATA_DIR`. It is excluded from Git to keep candidate personal data and photos out of repository commits. The backend host must mount persistent storage at that path; candidate files stay on the backend host rather than a visitor’s browser or the GitHub repository.
+Run `npm run lint` and `npm run build` to check the frontend.
 
-Activity records include successful account registration, email verification, sign-in, application submission and retrieval, administrator sign-in and review actions, and photo access, along with timestamps and request metadata.
+## Publish
 
-## Local development
-
-Requirements: Node.js 20+, PostgreSQL, and an SMTP account for sending verification codes.
-
-1. Copy `.env.example` to `.env` and configure `DATABASE_URL`, `JWT_SECRET` (32+ random characters), SMTP settings, and administrator credentials.
-2. Install packages: `npm ci`.
-3. Start the API: `npm run dev:api` (port 8787 by default).
-4. In another terminal, start the site: `npm run dev`.
-
-The API creates its tables on startup. Set `DATA_DIR` to a private writable folder with enough space for photos. Never commit `.env` or `server/data/`.
-
-The protected administrator review page is `#/admin`. Use the configured `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Its API can mark the two virtual rounds complete in order, invite to the Boss Round after both rounds, and approve after the Boss Round. Candidate status and the Hired Employees link are driven by those server-side states.
-
-## Deployment
-
-- GitHub Actions deploys the static frontend to GitHub Pages on pushes to `main`.
-- The frontend deploys to GitHub Pages; the Express API needs a separate Node.js host with PostgreSQL and persistent disk storage.
-- Set the GitHub Actions variable `VITE_API_URL` to the API's HTTPS base URL ending in `/api`, and allow `https://18rajeshkumarg.github.io` in the API's CORS origins.
-- Configure `DATABASE_URL`, `JWT_SECRET`, SMTP settings, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `DATA_DIR` on the API host. Keep credentials in the host's secret settings, never in Git.
-- Configure the API host to deploy from `main` if you want backend deploys to follow pushes. GitHub Pages deployment alone does not start the API.
-
-Run `npm run build` to validate the frontend production bundle and `node --check server/index.js` to check API syntax.
+GitHub Actions builds and deploys the frontend to GitHub Pages when changes are pushed to `main`.

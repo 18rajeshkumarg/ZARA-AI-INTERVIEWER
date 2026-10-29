@@ -29,8 +29,12 @@ dist-ssr
 !.env.example
 server/data/
 server-data/
-Uploads/
-Candidates/
+/Uploads/
+/Candidates/
+Candidate Applications/Candidates/*
+!Candidate Applications/Candidates/.gitkeep
+Candidate Applications/Uploads/*
+!Candidate Applications/Uploads/.gitkeep
 
 # Human_Detection (YOLO) generated artifacts
 Human_Detection/yolov8n.pt

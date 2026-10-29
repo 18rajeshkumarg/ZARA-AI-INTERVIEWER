@@ -115,7 +115,10 @@ function RoleApplication() {
       const updated = [item, ...readApplications(email)]
       localStorage.setItem(accountStorageKey(email), JSON.stringify(updated))
       setApplications(updated); setMessage('Application submitted successfully.')
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save the application to the selected project folder.') }
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : ''
+      setMessage(name === 'AbortError' ? 'Select the ZARA AI Interview project folder to save this application.' : error instanceof Error ? error.message : 'Could not save the application to the selected project folder.')
+    }
     finally { setBusy(false) }
   }
   const signOut = () => { localStorage.removeItem('zara_candidate_session'); setToken(''); setApplications([]); setMode('signin'); setMessage('You have signed out.') }
@@ -139,7 +142,7 @@ function RoleApplication() {
           <label className="text-sm font-semibold">Location<input required value={profile.location} onChange={(e)=>update('location',e.target.value)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/></label>
           <label className="text-sm font-semibold">Face photo<input type="file" required accept="image/jpeg,image/png,image/webp" onChange={(e)=>setPhoto(e.target.files?.[0]||null)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/><small className="font-normal text-ink/55">JPEG, PNG, or WebP · up to 5 MB</small></label>
           <label className="text-sm font-semibold sm:col-span-2">About yourself<textarea required rows={5} maxLength={4000} value={profile.about} onChange={(e)=>update('about',e.target.value)} className="mt-1 block w-full border border-ink/20 px-3 py-2 font-normal"/></label>
-          <p className="text-xs leading-relaxed text-ink/55 sm:col-span-2">On first submission, choose the ZARA AI Interview project folder. The application text is saved in Candidates/ and the photo in Uploads/ on this computer. This preview does not verify identity.</p>
+          <p className="text-xs leading-relaxed text-ink/55 sm:col-span-2">On first submission, choose the ZARA AI Interview project folder when your browser asks. The application text is saved in Candidate Applications/Candidates/ and the photo in Candidate Applications/Uploads/. This preview does not verify identity.</p>
           <button disabled={busy} className="w-fit bg-zara px-5 py-3 font-mono2 text-xs uppercase tracking-widest text-white disabled:opacity-50">{busy?'Submitting…':'Submit application'}</button>
         </form>}</>}
       {message&&<p role="status" className="mt-5 border border-ink/15 bg-gray-50 p-3 text-sm">{message}</p>}

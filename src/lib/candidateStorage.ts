@@ -95,8 +95,9 @@ export type CandidateApplicationFile = {
 
 export async function saveCandidateApplication(application: CandidateApplicationFile): Promise<string> {
   const root = await chooseProjectDirectory()
-  const candidates = await root.getDirectoryHandle('Candidates', { create: true })
-  const uploads = await root.getDirectoryHandle('Uploads', { create: true })
+  const applicationRoot = await root.getDirectoryHandle('Candidate Applications', { create: true })
+  const candidates = await applicationRoot.getDirectoryHandle('Candidates', { create: true })
+  const uploads = await applicationRoot.getDirectoryHandle('Uploads', { create: true })
   const number = await nextCandidateNumber(candidates)
   const id = `candidate-${String(number).padStart(6, '0')}`
   const extension = application.photo.type === 'image/png' ? 'png' : application.photo.type === 'image/webp' ? 'webp' : 'jpg'
@@ -115,7 +116,7 @@ export async function saveCandidateApplication(application: CandidateApplication
     `Work experience: ${application.experience}`,
     `Location: ${application.location}`,
     `About: ${application.about}`,
-    `Photo: Uploads/${photoName}`,
+    `Photo: Candidate Applications/Uploads/${photoName}`,
     `Submitted: ${new Date().toISOString()}`,
   ].join('\n') + '\n'
 
@@ -129,4 +130,22 @@ export async function saveCandidateApplication(application: CandidateApplication
     throw error
   }
   return id
+}
+
+export function saveApplicationPhotoLocally(id: string, photo: File): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open('zara_candidate_local_data', 1)
+    open.onupgradeneeded = () => {
+      if (!open.result.objectStoreNames.contains('photos')) open.result.createObjectStore('photos')
+    }
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const db = open.result
+      const transaction = db.transaction('photos', 'readwrite')
+      transaction.objectStore('photos').put(photo, id)
+      transaction.oncomplete = () => { db.close(); resolve() }
+      transaction.onerror = () => { db.close(); reject(transaction.error) }
+      transaction.onabort = () => { db.close(); reject(transaction.error) }
+    }
+  })
 }

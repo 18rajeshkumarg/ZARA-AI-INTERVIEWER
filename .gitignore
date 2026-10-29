@@ -24,6 +24,12 @@ dist-ssr
 *.sw?
 .vite-source-tags.js
 .vercel
+.env
+.env.*
+!.env.example
+server/data/
+server-data/
+Uploads/
 
 # Human_Detection (YOLO) generated artifacts
 Human_Detection/yolov8n.pt

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
-const api = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8787/api' : 'https://zara-ai-interviewer-api.onrender.com/api')).replace(/\/$/, '')
+const api = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8787/api' : `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}/api`)).replace(/\/$/, '')
 type Row = { id: string; role: string; name: string; email: string; phone: string; experience: string; location: string; about: string; status: string; round1_completed: boolean; round2_completed: boolean; boss_round_invited: boolean; boss_round_completed: boolean; created_at: string; photoUrl: string }
 
 export default function AdminDashboard() {
@@ -37,7 +37,7 @@ export default function AdminDashboard() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Sign-in failed.')
       sessionStorage.setItem('zara_admin_token', data.token); setToken(data.token)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Sign-in failed.') }
+    } catch (e) { setError(e instanceof TypeError ? 'We could not connect to account services. Please try again.' : e instanceof Error ? e.message : 'Sign-in failed.') }
     finally { setBusy(false) }
   }
   const action = async (item: Row, status: string) => {
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Review update failed.')
       await load(token)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Review update failed.') }
+    } catch (e) { setError(e instanceof TypeError ? 'We could not connect to account services. Please try again.' : e instanceof Error ? e.message : 'Review update failed.') }
     finally { setBusy(false) }
   }
   const logout = () => { Object.values(photoUrls).forEach(URL.revokeObjectURL); setPhotoUrls({}); sessionStorage.removeItem('zara_admin_token'); setToken(''); setRows([]) }

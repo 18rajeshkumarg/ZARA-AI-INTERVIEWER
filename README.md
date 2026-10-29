@@ -23,7 +23,7 @@ server/data/Candidates/candidate-000001.txt
 server/data/Uploads/candidate-000001.jpg
 ```
 
-The actual data directory is configurable with `DATA_DIR`. It is excluded from Git to keep candidate personal data and photos out of repository commits. On Render, the included Blueprint mounts a persistent disk at that path. This makes files available to the deployed backend; it does not copy candidate files into a developer’s local project folder or GitHub repository.
+The actual data directory is configurable with `DATA_DIR`. It is excluded from Git to keep candidate personal data and photos out of repository commits. The backend host must mount persistent storage at that path; candidate files stay on the backend host rather than a visitor’s browser or the GitHub repository.
 
 Activity records include successful account registration, email verification, sign-in, application submission and retrieval, administrator sign-in and review actions, and photo access, along with timestamps and request metadata.
 
@@ -43,8 +43,9 @@ The protected administrator review page is `#/admin`. Use the configured `ADMIN_
 ## Deployment
 
 - GitHub Actions deploys the static frontend to GitHub Pages on pushes to `main`.
-- `render.yaml` defines a separate Render API service, PostgreSQL database, and persistent disk. Provisioning it creates paid Render resources. During Blueprint setup, supply the SMTP and administrator secrets; do not put them in Git.
-- The production frontend defaults to `https://zara-ai-interviewer-api.onrender.com/api`, matching the configured Render service name. Set the `VITE_API_URL` build variable if the API uses a different hostname.
-- Connect Render to this GitHub repository and keep auto-deploy enabled. Backend deployment is separate from the GitHub Pages deployment.
+- The frontend deploys to GitHub Pages; the Express API needs a separate Node.js host with PostgreSQL and persistent disk storage.
+- Set the GitHub Actions variable `VITE_API_URL` to the API's HTTPS base URL ending in `/api`, and allow `https://18rajeshkumarg.github.io` in the API's CORS origins.
+- Configure `DATABASE_URL`, `JWT_SECRET`, SMTP settings, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `DATA_DIR` on the API host. Keep credentials in the host's secret settings, never in Git.
+- Configure the API host to deploy from `main` if you want backend deploys to follow pushes. GitHub Pages deployment alone does not start the API.
 
 Run `npm run build` to validate the frontend production bundle and `node --check server/index.js` to check API syntax.

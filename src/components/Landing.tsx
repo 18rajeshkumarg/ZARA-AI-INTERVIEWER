@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, CalendarDays } from 'lucide-react'
 
 const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
@@ -146,5 +146,11 @@ function RoleApplication() {
 
 export default function Landing() {
   const { roleId } = useParams()
+  const location = useLocation()
+  useEffect(() => {
+    if (location.pathname !== '/roles') return
+    const timer = window.setTimeout(() => document.getElementById('roles')?.scrollIntoView({ behavior: 'smooth' }), 0)
+    return () => window.clearTimeout(timer)
+  }, [location.pathname])
   return roleId ? <RoleApplication/> : <Home/>
 }

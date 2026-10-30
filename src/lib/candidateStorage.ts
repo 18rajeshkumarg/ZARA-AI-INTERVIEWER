@@ -4,6 +4,7 @@ type WritableFile = {
 }
 type FileHandle = { createWritable(): Promise<WritableFile> }
 export type DirectoryHandle = {
+  name: string
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<DirectoryHandle>
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileHandle>
   entries(): AsyncIterable<[string, unknown]>
@@ -95,7 +96,9 @@ export type CandidateApplicationFile = {
 
 export async function saveCandidateApplication(application: CandidateApplicationFile): Promise<string> {
   const root = await chooseProjectDirectory()
-  const applicationRoot = await root.getDirectoryHandle('Candidate Applications', { create: true })
+  const applicationRoot = root.name === 'Candidate Applications'
+    ? root
+    : await root.getDirectoryHandle('Candidate Applications', { create: true })
   const candidates = await applicationRoot.getDirectoryHandle('Candidates', { create: true })
   const uploads = await applicationRoot.getDirectoryHandle('Uploads', { create: true })
   const number = await nextCandidateNumber(candidates)
@@ -116,7 +119,7 @@ export async function saveCandidateApplication(application: CandidateApplication
     `Work experience: ${application.experience}`,
     `Location: ${application.location}`,
     `About: ${application.about}`,
-    `Photo: Candidate Applications/Uploads/${photoName}`,
+    `Photo: ../Uploads/${photoName}`,
     `Submitted: ${new Date().toISOString()}`,
   ].join('\n') + '\n'
 

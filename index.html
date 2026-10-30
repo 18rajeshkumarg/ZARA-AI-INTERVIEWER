@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="%BASE_URL%indicasoftware-logo.svg" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="%BASE_URL%indicasoftware-logo.svg"
+    />
     <link rel="apple-touch-icon" href="%BASE_URL%indicasoftware-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#09090b" />
@@ -15,7 +19,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap"
       media="print"
-      onload="this.media='all'"
+      onload="this.media = 'all'"
     />
     <meta
       name="description"
@@ -24,44 +28,113 @@
     <title>ZARA · AI Interview | Indica Software Careers</title>
     <style>
       /* Paint a readable page immediately, before any stylesheet loads. */
-      html, body { background: #f7f7f8; }
+      html,
+      body {
+        background: #f7f7f8;
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Safety net: if the app bundle fails to load or mount (stale cached
-      // index.html pointing at a replaced asset, a dropped connection, an old
-      // restored tab), show a real message instead of a silent blank page.
+      /*
+       * Load watchdog.
+       *
+       * It exists for one case only: the app genuinely cannot start (a stale
+       * index.html pointing at a replaced asset, a dropped connection, a
+       * blocked script). It must NEVER cover a page that is still loading —
+       * an earlier version fired on a fixed 6s timer and hid a working app on
+       * slower devices, so this one:
+       *   - waits for the app to signal that the bundle executed,
+       *   - polls instead of firing on a single timer,
+       *   - removes itself the moment #root gains content,
+       *   - never fires for a tab that is still loading.
+       */
       (function () {
+        var started = false;
         var shown = false;
-        function fallback() {
-          if (shown) return;
-          var root = document.getElementById('root');
-          if (root && root.children.length > 0) return;
+        var root = document.getElementById("root");
+
+        function appMounted() {
+          return !!(root && root.children.length > 0);
+        }
+
+        function clear() {
+          if (timer) window.clearInterval(timer);
+          timer = null;
+        }
+
+        function show() {
+          if (shown || appMounted()) return;
           shown = true;
-          var box = document.createElement('div');
-          box.setAttribute('role', 'alert');
+          clear();
+          var box = document.createElement("div");
+          box.setAttribute("role", "alert");
           box.style.cssText =
-            'font-family:system-ui,sans-serif;max-width:640px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55';
+            "font-family:system-ui,sans-serif;max-width:640px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55";
           box.innerHTML =
             '<h1 style="margin:0 0 8px;font-size:22px">ZARA AI Interview</h1>' +
-            '<p style="margin:0 0 18px;color:#52525b">This page could not finish loading. Your browser is most likely holding an older cached copy of the site.</p>' +
+            '<p style="margin:0 0 18px;color:#52525b">This page could not finish loading. Your browser may be holding an older cached copy of the site.</p>' +
             '<button id="zara-reload" style="font:inherit;padding:12px 20px;border:0;border-radius:8px;background:#e5002d;color:#fff;cursor:pointer;font-weight:700">Reload the latest version</button>' +
             '<p style="margin:16px 0 0;font-size:13px;color:#71717a">Still stuck? Press Ctrl+Shift+R (or Cmd+Shift+R) to force a refresh.</p>';
           (root || document.body).appendChild(box);
-          document.getElementById('zara-reload').addEventListener('click', function () {
-            location.replace(location.pathname + '?v=' + Date.now() + location.hash);
-          });
+          document
+            .getElementById("zara-reload")
+            .addEventListener("click", function () {
+              // Replace the whole query string; appending to location.pathname
+              // dropped GitHub Pages' sub-path handling.
+              location.replace(
+                location.pathname + "?v=" + Date.now() + location.hash,
+              );
+            });
         }
-        // A module script that 404s or throws never decorates #root.
-        window.addEventListener('error', function (event) {
-          var target = event.target;
-          if (target && target.tagName === 'SCRIPT') fallback();
-        }, true);
-        // Give the real app a fair chance before judging.
-        window.setTimeout(fallback, 6000);
+
+        // The app sets this from main.tsx as soon as the bundle runs. If it
+        // never appears, the JS itself never executed.
+        var timer = null;
+
+        function watch() {
+          if (window.__ZARA_APP_STARTED__) {
+            started = true;
+            clear();
+            // Bundle ran: only report a failure if React still has not rendered.
+            timer = window.setInterval(function () {
+              if (appMounted()) {
+                clear();
+                return;
+              }
+              show();
+            }, 1000);
+            window.setTimeout(function () {
+              if (!appMounted()) show();
+            }, 20000);
+            return;
+          }
+          if (appMounted()) {
+            clear();
+            return;
+          }
+          // Bundle never signalled — wait longer on slow connections, and give
+          // background tabs unlimited leeway so a restored tab is not punished.
+          var waited = Date.now() - began;
+          if (waited > 45000) show();
+        }
+
+        var began = Date.now();
+        // A script that fails to fetch fires `error` on the element itself.
+        window.addEventListener(
+          "error",
+          function (event) {
+            var target = event.target;
+            if (target && target.tagName === "SCRIPT" && target.src) {
+              // Give the module a moment; only then declare failure.
+              window.setTimeout(show, 4000);
+            }
+          },
+          true,
+        );
+        timer = window.setInterval(watch, 500);
       })();
     </script>
   </body>

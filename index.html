@@ -5,56 +5,26 @@
     <link
       rel="icon"
       type="image/svg+xml"
-      href="%BASE_URL%indicasoftware-logo.svg"
+      href="/ZARA-AI-INTERVIEWER/indicasoftware-logo.svg"
     />
-    <link rel="apple-touch-icon" href="%BASE_URL%indicasoftware-logo.svg" />
+    <link rel="apple-touch-icon" href="/ZARA-AI-INTERVIEWER/indicasoftware-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#09090b" />
-    <!--
-      Fonts load non-blocking. A blocking @import here delays first paint
-      until fonts.googleapis.com responds, which shows as a blank white page
-      on slow or restricted networks. Fallback fonts render immediately.
-    -->
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap"
-      media="print"
-      onload="this.media = 'all'"
-    />
-    <meta
-      name="description"
-      content="ZARA AI Interview by Indica Software — apply for a role, verify your face with YOLO, complete two virtual Zoom rounds and meet the Boss in person."
-    />
+    <meta name="description" content="ZARA AI Interview by Indica Software - apply for a role, verify your face with YOLO, complete two virtual Zoom rounds and meet the Boss in person." />
     <title>ZARA · AI Interview | Indica Software Careers</title>
     <style>
-      /* Paint a readable page immediately, before any stylesheet loads. */
-      html,
-      body {
-        background: #f7f7f8;
-      }
+      html, body { background: #f7f7f8; }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      /*
-       * Load watchdog.
-       *
-       * It exists for one case only: the app genuinely cannot start (a stale
-       * index.html pointing at a replaced asset, a dropped connection, a
-       * blocked script). It must NEVER cover a page that is still loading —
-       * an earlier version fired on a fixed 6s timer and hid a working app on
-       * slower devices, so this one:
-       *   - waits for the app to signal that the bundle executed,
-       *   - polls instead of firing on a single timer,
-       *   - removes itself the moment #root gains content,
-       *   - never fires for a tab that is still loading.
-       */
       (function () {
         var started = false;
         var shown = false;
         var root = document.getElementById("root");
+        var timer = null;
 
         function appMounted() {
           return !!(root && root.children.length > 0);
@@ -66,7 +36,7 @@
         }
 
         function show() {
-          if (shown || appMounted()) return;
+          if (shown || appMounted() || recovering) return;
           shown = true;
           clear();
           var box = document.createElement("div");
@@ -82,23 +52,59 @@
           document
             .getElementById("zara-reload")
             .addEventListener("click", function () {
-              // Replace the whole query string; appending to location.pathname
-              // dropped GitHub Pages' sub-path handling.
-              location.replace(
-                location.pathname + "?v=" + Date.now() + location.hash,
-              );
+              location.replace(location.pathname + "?v=" + Date.now() + location.hash);
             });
         }
 
-        // The app sets this from main.tsx as soon as the bundle runs. If it
-        // never appears, the JS itself never executed.
-        var timer = null;
+        var recovering = false;
+
+        function entryScriptSrc() {
+          var el = document.querySelector('script[type="module"][src]');
+          return el ? el.src : "";
+        }
+
+        function recover() {
+          if (recovering || shown || appMounted() || window.__ZARA_APP_STARTED__) {
+            return;
+          }
+          var src = entryScriptSrc();
+          if (!src || /\.tsx?$/.test(src)) {
+            show();
+            return;
+          }
+          recovering = true;
+          var tries = 0;
+
+          function attempt() {
+            var fresh =
+              src + (src.indexOf("?") < 0 ? "?" : "&") + "z=" + Date.now() + "-" + tries;
+            fetch(fresh, { cache: "no-store" })
+              .then(function (res) {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.text();
+              })
+              .then(function (code) {
+                recovering = false;
+                return import(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
+              })
+              .catch(function () {
+                tries += 1;
+                if (tries >= 4) {
+                  recovering = false;
+                  show();
+                } else {
+                  window.setTimeout(attempt, 1500);
+                }
+              });
+          }
+
+          attempt();
+        }
 
         function watch() {
           if (window.__ZARA_APP_STARTED__) {
             started = true;
             clear();
-            // Bundle ran: only report a failure if React still has not rendered.
             timer = window.setInterval(function () {
               if (appMounted()) {
                 clear();
@@ -115,24 +121,24 @@
             clear();
             return;
           }
-          // Bundle never signalled — wait longer on slow connections, and give
-          // background tabs unlimited leeway so a restored tab is not punished.
           var waited = Date.now() - began;
-          if (waited > 45000) show();
+          if (waited > 45000) recover();
         }
 
         var began = Date.now();
-        // A script that fails to fetch fires `error` on the element itself.
+
         window.addEventListener(
           "error",
           function (event) {
             var target = event.target;
             if (target && target.tagName === "SCRIPT" && target.src) {
-              // Give the module a moment; only then declare failure.
-              window.setTimeout(show, 4000);
+              window.setTimeout(function () {
+                if (appMounted()) return;
+                recover();
+              }, 4000);
             }
           },
-          true,
+          true
         );
         timer = window.setInterval(watch, 500);
       })();

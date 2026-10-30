@@ -162,17 +162,22 @@ async function applicationRoot(root: DirectoryHandle): Promise<DirectoryHandle> 
   return root.getDirectoryHandle('Candidate Applications', { create: true })
 }
 
+// Counts every numbered file (txt and photo), so a candidate whose record was
+// only partly written still reserves its number and is never overwritten.
 async function nextCandidateNumber(directory: DirectoryHandle): Promise<number> {
-  let max = 0
-  try {
-    for await (const [filename] of directory.entries()) {
-      const match = /^candidate-(\d+)\.txt$/i.exec(filename)
-      if (match) max = Math.max(max, Number(match[1]))
+  const seen = new Set<string>()
+  const scan = async (handle: DirectoryHandle) => {
+    try {
+      for await (const [filename] of handle.entries()) {
+        const match = /^candidate-(\d+)\b/i.exec(filename)
+        if (match) seen.add(match[1])
+      }
+    } catch {
+      /* unreadable folder — start from the local sequence */
     }
-  } catch {
-    /* unreadable folder — start from the local sequence */
   }
-  return max
+  await scan(directory)
+  return [...seen].reduce((max, digits) => Math.max(max, Number(digits)), 0)
 }
 
 /** Highest candidate number already present in the remembered folder. */
@@ -185,7 +190,8 @@ export async function folderCandidateMax(): Promise<number> {
   try {
     const appRoot = await applicationRoot(root)
     const candidates = await appRoot.getDirectoryHandle('Candidates', { create: true })
-    return await nextCandidateNumber(candidates)
+    const uploads = await appRoot.getDirectoryHandle('Uploads', { create: true })
+    return Math.max(await nextCandidateNumber(candidates), await nextCandidateNumber(uploads))
   } catch {
     return 0
   }

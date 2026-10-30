@@ -2,18 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, CalendarDays } from 'lucide-react'
 import { restoreCandidateDirectory, saveCandidateApplication } from '../lib/candidateStorage'
+import { ROLES, roleFromSlug, roleSlug } from '../../shared/roles.js'
 
 const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
 const companyUrl = 'https://18rajeshkumarg.github.io/indicasoftware/'
-const roles = [
-  'Full Stack Developer + Integrations', 'Admin/Audit Manager', 'AI Automations', 'AI Developer',
-  'Android/IOS Developer', 'Voice/Non-Voice Process', 'Sales & Marketing', 'HR',
-  'Recruiter & Consulting Team', 'Onboarding Process Team', 'Customer Support Representative',
-]
-const slug = (role: string) => role.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-const titleFor = (id: string | undefined) => roles.find((role) => slug(role) === id)
 const faqs = [
-  ['Which roles are open?', 'Applications are open for the 11 roles listed above. Each role has a separate application page.'],
+  ['Which roles are open?', `Applications are open for the ${ROLES.length} roles listed above. Each role has a separate application page.`],
   ['How do I apply?', 'Create an account in this browser, sign in, then complete the role-specific form and upload a face photo.'],
   ['Where is my application saved?', 'The candidate text file and photo are saved in the project folder you choose on this computer. The account itself stays in this browser.'],
   ['Can I use my account on another device?', 'No. Preview accounts are stored only in the browser where they were created.'],
@@ -55,14 +49,14 @@ function Shell({ children }: { children: React.ReactNode }) {
 function Home() {
   return <Shell><main>
     <section className="bg-grid-light border-b border-ink/10"><div className="mx-auto max-w-5xl px-5 py-20 text-center"><p className="font-mono2 text-xs uppercase tracking-[.3em] text-zara">Careers · Indica Software</p><h1 className="mt-5 text-5xl font-black leading-none sm:text-7xl">YOUR NEXT ROLE<br/><span className="text-zara">STARTS HERE.</span></h1><p className="mx-auto mt-6 max-w-2xl text-lg text-ink/70">Explore open positions and apply through a dedicated page for each role.</p><button type="button" onClick={()=>document.getElementById('roles')?.scrollIntoView({behavior:'smooth'})} className="mt-8 inline-flex items-center gap-2 bg-zara px-6 py-3 font-mono2 text-xs uppercase tracking-widest text-white hover:bg-ink">Apply for a job <ArrowRight className="h-4 w-4"/></button><div className="mx-auto mt-12 grid max-w-2xl gap-px border border-ink/15 bg-ink/15 sm:grid-cols-2"><div className="bg-paper p-4"><b>Virtual Round 1</b><p className="text-sm text-ink/60">11:30 AM–11:55 AM IST</p></div><div className="bg-paper p-4"><b>Virtual Round 2</b><p className="text-sm text-ink/60">12:40 PM–1:10 PM IST</p></div></div></div></section>
-    <section id="roles" className="bg-grid-light border-b border-ink/10"><div className="mx-auto max-w-5xl px-5 py-16"><h2 className="text-3xl font-black sm:text-4xl">PICK A ROLE</h2><p className="mt-2 text-ink/60">Each position opens its own application page.</p><div className="mt-8 grid gap-3 sm:grid-cols-2">{roles.map((role) => <Link key={role} to={`/apply/${slug(role)}`} className="flex items-center justify-between border border-ink/15 bg-paper p-5 font-bold transition-colors hover:border-zara"><span>{role}</span><ArrowRight className="h-4 w-4 shrink-0 text-zara"/></Link>)}</div></div></section>
+    <section id="roles" className="bg-grid-light border-b border-ink/10"><div className="mx-auto max-w-5xl px-5 py-16"><h2 className="text-3xl font-black sm:text-4xl">PICK A ROLE</h2><p className="mt-2 text-ink/60">Each position opens its own application page.</p><div className="mt-8 grid gap-3 sm:grid-cols-2">{ROLES.map((role) => <Link key={role} to={`/apply/${roleSlug(role)}`} className="flex items-center justify-between border border-ink/15 bg-paper p-5 font-bold transition-colors hover:border-zara"><span>{role}</span><ArrowRight className="h-4 w-4 shrink-0 text-zara"/></Link>)}</div></div></section>
     <section><div className="mx-auto max-w-4xl px-5 py-16"><h2 className="text-3xl font-black">FREQUENTLY ASKED QUESTIONS</h2><div className="mt-7 space-y-3">{faqs.map(([q,a])=><details key={q} className="border border-ink/15 bg-paper p-4"><summary className="cursor-pointer font-bold">{q}</summary><p className="mt-3 text-sm leading-relaxed text-ink/70">{a}</p></details>)}</div></div></section>
   </main></Shell>
 }
 
 function RoleApplication() {
   const { roleId } = useParams()
-  const role = titleFor(roleId)
+  const role = roleFromSlug(roleId)
   const navigate = useNavigate()
   const [email, setEmail] = useState(() => localStorage.getItem('zara_candidate_email') || '')
   const [password, setPassword] = useState('')

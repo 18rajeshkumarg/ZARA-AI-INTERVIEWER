@@ -12,6 +12,7 @@ import { createHash, randomInt, timingSafeEqual } from 'node:crypto'
 import { mkdir, writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ROLES as roles } from '../shared/roles.js'
 
 const { Pool } = pg
 const app = express()
@@ -21,11 +22,6 @@ const dataRoot = path.resolve(process.env.DATA_DIR || path.join(here, 'data'))
 const candidatesDir = path.join(dataRoot, 'Candidates')
 const uploadsDir = path.join(dataRoot, 'Uploads')
 const jwtSecret = process.env.JWT_SECRET
-const roles = [
-  'Full Stack Developer + Integrations', 'Admin/Audit Manager', 'AI Automations', 'AI Developer',
-  'Android/IOS Developer', 'Voice/Non-Voice Process', 'Sales & Marketing', 'HR',
-  'Recruiter & Consulting Team', 'Onboarding Process Team', 'Customer Support Representative',
-]
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false } })
 const mailer = process.env.SMTP_HOST ? nodemailer.createTransport({
   host: process.env.SMTP_HOST,

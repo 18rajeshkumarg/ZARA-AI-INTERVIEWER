@@ -48,8 +48,10 @@ python human_detection.py
 
 ## Interview session data (recorded by the web app)
 
-During a live interview the web app automatically records the session and
-saves the data into this folder (or downloads it if no folder was chosen).
+During a live interview the web app can automatically record the session and
+save the data into this folder. If no folder is available, the data is retained
+in the browser's secure IndexedDB store instead — recordings are never
+downloaded.
 **The camera recording video clip is placed in `video/` automatically:**
 
 ```
@@ -72,8 +74,12 @@ The recorded session files are git-ignored, so recordings never end up in commit
 
 ## Relation to the web app
 
-The deployed site can't run Python/OpenCV in the browser, so the **live
-interview camera** uses an equivalent in-browser person detector
+The interview room implemented in `src/components/InterviewRoom.tsx` (with the
+helpers in `src/lib/capture.ts`) uses an equivalent in-browser person detector
 (TensorFlow.js COCO-SSD, `person` class) to enforce the same rules in real
 time: the interview auto-terminates if **0 people** or **2+ people** are
-visible. This folder is the offline/analytical version of that pipeline.
+visible. That flow is retained in the codebase but is not currently linked from
+the deployed application-only site, so no new session files are produced until
+it is routed again.
+
+This folder is the offline/analytical version of the same pipeline.

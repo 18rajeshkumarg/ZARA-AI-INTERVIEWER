@@ -1,4 +1,4 @@
-import { HashRouter, Route, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AdminDashboard from './components/AdminDashboard'
 import Landing from './components/Landing'
 
@@ -10,6 +10,7 @@ export default function App() {
       <Route path="/roles" element={<Landing />} />
       <Route path="/apply/:roleId" element={<Landing />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   </HashRouter>
 }

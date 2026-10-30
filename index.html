@@ -6,14 +6,63 @@
     <link rel="apple-touch-icon" href="%BASE_URL%indicasoftware-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#09090b" />
+    <!--
+      Fonts load non-blocking. A blocking @import here delays first paint
+      until fonts.googleapis.com responds, which shows as a blank white page
+      on slow or restricted networks. Fallback fonts render immediately.
+    -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
     <meta
       name="description"
       content="ZARA AI Interview by Indica Software — apply for a role, verify your face with YOLO, complete two virtual Zoom rounds and meet the Boss in person."
     />
     <title>ZARA · AI Interview | Indica Software Careers</title>
+    <style>
+      /* Paint a readable page immediately, before any stylesheet loads. */
+      html, body { background: #f7f7f8; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Safety net: if the app bundle fails to load or mount (stale cached
+      // index.html pointing at a replaced asset, a dropped connection, an old
+      // restored tab), show a real message instead of a silent blank page.
+      (function () {
+        var shown = false;
+        function fallback() {
+          if (shown) return;
+          var root = document.getElementById('root');
+          if (root && root.children.length > 0) return;
+          shown = true;
+          var box = document.createElement('div');
+          box.setAttribute('role', 'alert');
+          box.style.cssText =
+            'font-family:system-ui,sans-serif;max-width:640px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55';
+          box.innerHTML =
+            '<h1 style="margin:0 0 8px;font-size:22px">ZARA AI Interview</h1>' +
+            '<p style="margin:0 0 18px;color:#52525b">This page could not finish loading. Your browser is most likely holding an older cached copy of the site.</p>' +
+            '<button id="zara-reload" style="font:inherit;padding:12px 20px;border:0;border-radius:8px;background:#e5002d;color:#fff;cursor:pointer;font-weight:700">Reload the latest version</button>' +
+            '<p style="margin:16px 0 0;font-size:13px;color:#71717a">Still stuck? Press Ctrl+Shift+R (or Cmd+Shift+R) to force a refresh.</p>';
+          (root || document.body).appendChild(box);
+          document.getElementById('zara-reload').addEventListener('click', function () {
+            location.replace(location.pathname + '?v=' + Date.now() + location.hash);
+          });
+        }
+        // A module script that 404s or throws never decorates #root.
+        window.addEventListener('error', function (event) {
+          var target = event.target;
+          if (target && target.tagName === 'SCRIPT') fallback();
+        }, true);
+        // Give the real app a fair chance before judging.
+        window.setTimeout(fallback, 6000);
+      })();
+    </script>
   </body>
 </html>

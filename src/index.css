@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap');
+/* Fonts are loaded non-blocking from index.html instead of a blocking
+   @import here, so a slow fonts CDN can never delay the first paint. */
 @import "tailwindcss";
 
 @theme {
@@ -19,6 +20,7 @@ body {
 .font-mono2 { font-family: "Space Grotesk", ui-monospace, monospace; }
 
 .bg-grid-light {
+  background-color: var(--color-paper);
   background-image:
     linear-gradient(to right, rgba(9,9,11,0.055) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(9,9,11,0.055) 1px, transparent 1px);
@@ -26,6 +28,7 @@ body {
   animation: grid-drift 24s linear infinite;
 }
 .bg-grid-dark {
+  background-color: var(--color-ink);
   background-image:
     linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
@@ -36,6 +39,20 @@ body {
 @keyframes grid-drift {
   from { background-position: 0 0, 0 0; }
   to { background-position: 44px 44px, 44px 44px; }
+}
+
+/*
+ * A full-page repeating animated background can fail to paint on some GPU /
+ * driver combinations, which leaves the whole page blank even though the DOM
+ * and styles are correct. Motion-sensitive users get a static page, and any
+ * device that cannot composite the animation falls back to a plain colour.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid-light, .bg-grid-dark { animation: none; }
+}
+
+@supports not (background-size: 44px 44px) {
+  .bg-grid-light, .bg-grid-dark { background-image: none; }
 }
 
 .brand-logo {

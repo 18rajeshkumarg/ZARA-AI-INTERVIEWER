@@ -227,8 +227,8 @@ export default function RoleApplication() {
         </Link>
 
         <section className="mt-5 border border-ink/15 bg-white p-6 sm:p-9">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-zara">{details.department} · Role application</p>
               <h1 className="mt-2 text-3xl font-black sm:text-4xl">{role}</h1>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink/60">{details.blurb}</p>
@@ -238,7 +238,7 @@ export default function RoleApplication() {
                 ))}
               </div>
             </div>
-            <BriefcaseBusiness className="h-8 w-8 text-zara" />
+            <BriefcaseBusiness className="hidden h-8 w-8 shrink-0 text-zara sm:block" />
           </div>
 
           <div className="mt-6 grid gap-3 border-t border-ink/10 pt-5 text-sm sm:grid-cols-3">

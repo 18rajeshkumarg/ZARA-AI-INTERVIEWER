@@ -59,6 +59,8 @@ The folder is selected **once** with the File System Access API and the director
 
 To connect or reconnect the folder on the review machine, open `#/admin`, enter the Boss passcode and use **Connect folder**.
 
+Records written by older builds (details only, no schedule) can be completed in place with `npm run repair:candidates -- --write`. See [`Candidate Applications/README.md`](Candidate Applications/README.md).
+
 > Candidate files are intentionally git-ignored (`Candidate Applications/Candidates/*` and `Uploads/*`) so personal data is not published to the public GitHub repository. They remain in the local project folder for the hiring team.
 
 ## Hiring review (`#/admin`)
@@ -117,6 +119,7 @@ The workflow is in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml
 | `src/lib/auth.ts` | Browser-local PBKDF2 account authentication |
 | `src/lib/applications.ts` | Applications, schedules, Zoom links and status transitions |
 | `src/lib/candidateStorage.ts` | Project-folder writes and local photo storage |
+| `scripts/repair-candidates.mjs` | Upgrades older candidate `.txt` records to the current format |
 | `src/lib/faceVerification.ts` | TensorFlow.js COCO-SSD person detector |
 | `shared/roles.js` | Single source of truth for the 11 roles |
 | `Human_Detection/` | Offline YOLOv8 person-detection analyzer |

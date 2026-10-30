@@ -18,3 +18,18 @@ activity.txt             # one line per application/status update
 - If folder access is unavailable (new device, revoked permission or unsupported browser), the application is still saved in the browser and no error is shown.
 - On a new review device, open `#/admin`, enter the Boss passcode and use **Connect folder** once.
 - Candidate `.txt` and photo files are git-ignored so personal data is not published to the public GitHub repository.
+
+## Repairing older records
+
+Records written by earlier builds only contain the candidate's details. Run the
+repair to add the interview date, both Zoom links, round status and activity
+trail using the same scheduling logic as the live site:
+
+```sh
+npm run repair:candidates          # dry run — shows what would change
+npm run repair:candidates -- --write
+```
+
+Every detail the candidate entered is preserved; an already-complete record is
+left untouched, and a record missing required fields is skipped rather than
+guessed at.

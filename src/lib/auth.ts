@@ -23,7 +23,20 @@ function toHex(bytes: Uint8Array): string {
 
 function readAccounts(): Record<string, LocalAccount> {
   try {
-    return JSON.parse(localStorage.getItem(accountsKey) || '{}') as Record<string, LocalAccount>
+    const value = JSON.parse(localStorage.getItem(accountsKey) || '{}')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    const accounts: Record<string, LocalAccount> = {}
+    for (const [email, raw] of Object.entries(value as Record<string, unknown>)) {
+      if (!raw || typeof raw !== 'object') continue
+      const record = raw as Record<string, unknown>
+      if (typeof record.salt !== 'string' || typeof record.passwordHash !== 'string') continue
+      accounts[normalizeEmail(email)] = {
+        salt: record.salt,
+        passwordHash: record.passwordHash,
+        createdAt: typeof record.createdAt === 'string' ? record.createdAt : '',
+      }
+    }
+    return accounts
   } catch {
     return {}
   }
@@ -64,7 +77,8 @@ export function rememberEmail(email: string): void {
 
 export function readRememberedEmail(): string {
   try {
-    return localStorage.getItem(rememberedEmailKey) || ''
+    const value = localStorage.getItem(rememberedEmailKey) || ''
+    return validEmail(value) ? normalizeEmail(value) : ''
   } catch {
     return ''
   }
@@ -72,7 +86,15 @@ export function readRememberedEmail(): string {
 
 export function currentSessionEmail(): string {
   try {
-    return localStorage.getItem(sessionKey) || ''
+    const value = localStorage.getItem(sessionKey) || ''
+    if (!value) return ''
+    // Older builds stored an API token in this key. A token is not an account
+    // email, so treat it as signed out instead of showing it in the header.
+    if (!validEmail(value)) {
+      localStorage.removeItem(sessionKey)
+      return ''
+    }
+    return normalizeEmail(value)
   } catch {
     return ''
   }

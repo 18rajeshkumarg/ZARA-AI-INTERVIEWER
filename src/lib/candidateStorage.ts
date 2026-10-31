@@ -228,7 +228,7 @@ export async function writeCandidateRecord(application: Application): Promise<bo
       `Work experience: ${application.experience}`,
       `Location: ${application.location}`,
       `About: ${application.about}`,
-      `Photo: ../Uploads/${application.photoName}`,
+      `Photo: ${application.photoName ? `../Uploads/${application.photoName}` : 'not uploaded (earlier build)'}`,
       `Submitted: ${application.createdAt}`,
       `Interview date: ${application.interviewDate}`,
       `Virtual Round 1: 11:30 AM - 11:55 AM IST`,

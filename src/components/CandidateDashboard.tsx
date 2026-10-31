@@ -433,8 +433,13 @@ export default function CandidateDashboard({
             <p>
               Your details, interview schedule and both Zoom links are written to{' '}
               <span className="font-mono2 text-xs">Candidate Applications/Candidates/{application.id}.txt</span> when the
-              project folder is connected. Your face photo is written to{' '}
-              <span className="font-mono2 text-xs">Candidate Applications/Uploads/{application.photoName}</span>.
+              project folder is connected.
+              {application.photoName ? (
+                <>
+                  {' '}Your face photo is written to{' '}
+                  <span className="font-mono2 text-xs">Candidate Applications/Uploads/{application.photoName}</span>.
+                </>
+              ) : null}
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-4 text-xs text-ink/45">

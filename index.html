@@ -29,130 +29,58 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55">
+        <h1 style="margin:0 0 8px;font-size:22px">ZARA AI Interview</h1>
+        <p style="margin:0;color:#52525b">This site needs JavaScript. Please enable JavaScript in your browser and reload the page.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Fallback for a bundle that never starts: offline, a blocked request, a
+      // deploy in progress or a script that failed to execute. It only appears
+      // when nothing at all rendered, and it never blames the browser cache.
+      // Render errors are handled inside the app by its error boundary.
       (function () {
-        var started = false;
         var shown = false;
-        var root = document.getElementById("root");
-        var timer = null;
-
         function appMounted() {
+          var root = document.getElementById("root");
           return !!(root && root.children.length > 0);
         }
-
-        function clear() {
-          if (timer) window.clearInterval(timer);
-          timer = null;
-        }
-
         function show() {
-          if (shown || appMounted() || recovering) return;
+          if (shown || appMounted()) return;
           shown = true;
-          clear();
           var box = document.createElement("div");
           box.setAttribute("role", "alert");
           box.style.cssText =
-            "font-family:system-ui,sans-serif;max-width:640px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55";
+            "font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55";
           box.innerHTML =
             '<h1 style="margin:0 0 8px;font-size:22px">ZARA AI Interview</h1>' +
-            '<p style="margin:0 0 18px;color:#52525b">This page could not finish loading. Your browser may be holding an older cached copy of the site.</p>' +
-            '<button id="zara-reload" style="font:inherit;padding:12px 20px;border:0;border-radius:8px;background:#e5002d;color:#fff;cursor:pointer;font-weight:700">Reload the latest version</button>' +
-            '<p style="margin:16px 0 0;font-size:13px;color:#71717a">Still stuck? Press Ctrl+Shift+R (or Cmd+Shift+R) to force a refresh.</p>';
-          (root || document.body).appendChild(box);
-          document
-            .getElementById("zara-reload")
-            .addEventListener("click", function () {
-              location.replace(location.pathname + "?v=" + Date.now() + location.hash);
-            });
+            '<p style="margin:0 0 18px;color:#52525b">The app could not start. Check your connection, then reload the page.</p>' +
+            '<button onclick="location.reload()" style="font:inherit;padding:12px 20px;border:0;border-radius:8px;background:#e5002d;color:#fff;cursor:pointer;font-weight:700">Reload the page</button>';
+          document.body.appendChild(box);
         }
-
-        var recovering = false;
-
-        function entryScriptSrc() {
-          var el = document.querySelector('script[type="module"][src]');
-          return el ? el.src : "";
-        }
-
-        function recover() {
-          if (recovering || shown || appMounted() || window.__ZARA_APP_STARTED__) {
-            return;
-          }
-          var src = entryScriptSrc();
-          if (!src || /\.tsx?$/.test(src)) {
-            show();
-            return;
-          }
-          recovering = true;
-          var tries = 0;
-
-          function attempt() {
-            var fresh =
-              src + (src.indexOf("?") < 0 ? "?" : "&") + "z=" + Date.now() + "-" + tries;
-            fetch(fresh, { cache: "no-store" })
-              .then(function (res) {
-                if (!res.ok) throw new Error("HTTP " + res.status);
-                return res.text();
-              })
-              .then(function (code) {
-                recovering = false;
-                return import(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
-              })
-              .catch(function () {
-                tries += 1;
-                if (tries >= 4) {
-                  recovering = false;
-                  show();
-                } else {
-                  window.setTimeout(attempt, 1500);
-                }
-              });
-          }
-
-          attempt();
-        }
-
-        function watch() {
-          if (window.__ZARA_APP_STARTED__) {
-            started = true;
-            clear();
-            timer = window.setInterval(function () {
-              if (appMounted()) {
-                clear();
-                return;
-              }
-              show();
-            }, 1000);
-            window.setTimeout(function () {
-              if (!appMounted()) show();
-            }, 20000);
-            return;
-          }
-          if (appMounted()) {
-            clear();
-            return;
-          }
-          var waited = Date.now() - began;
-          if (waited > 45000) recover();
-        }
-
-        var began = Date.now();
-
         window.addEventListener(
           "error",
           function (event) {
             var target = event.target;
             if (target && target.tagName === "SCRIPT" && target.src) {
-              window.setTimeout(function () {
-                if (appMounted()) return;
-                recover();
-              }, 4000);
+              // The entry bundle itself failed to download.
+              window.setTimeout(show, 1500);
+              return;
+            }
+            if (target === window || event.error) {
+              // The bundle downloaded but threw before React could render.
+              window.setTimeout(show, 2500);
             }
           },
           true
         );
-        timer = window.setInterval(watch, 500);
       })();
+    </script>
+    <script nomodule>
+      document.getElementById("root").innerHTML =
+        '<div style="font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:28px;border:1px solid #d4d4d8;border-radius:12px;background:#fff;color:#18181b;line-height:1.55"><h1 style="margin:0 0 8px;font-size:22px">ZARA AI Interview</h1><p style="margin:0;color:#52525b">This browser is too old to run the site. Please open it in a current version of Chrome, Edge, Firefox or Safari.</p></div>';
     </script>
   </body>
 </html>

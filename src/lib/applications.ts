@@ -50,10 +50,136 @@ export type Application = {
 const allKey = 'zara_all_applications'
 const perAccountPrefix = 'zara_candidate_applications:'
 
+type RawRecord = Record<string, unknown>
+
+function asRecord(value: unknown): RawRecord {
+  return value && typeof value === 'object' ? (value as RawRecord) : {}
+}
+
+function text(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback
+}
+
+function optionalIso(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value) return undefined
+  return Number.isNaN(new Date(value).getTime()) ? undefined : value
+}
+
+function isoOr(value: unknown, fallback: string): string {
+  return optionalIso(value) || fallback
+}
+
+/**
+ * Older builds saved a flat record (`round1Completed`, `bossRoundInvited`, …)
+ * under the same storage keys. Reading those as the current `Application` shape
+ * crashed the dashboard. Every record is now validated and upgraded on read.
+ */
+function normalizeApplication(raw: unknown): Application | null {
+  const record = asRecord(raw)
+  const id = text(record.id)
+  const role = text(record.role)
+  const name = text(record.name)
+  const email = text(record.email) || text(record.accountEmail)
+  if (!id || !role || !name || !email) return null
+
+  const now = new Date().toISOString()
+  const createdAt = isoOr(record.createdAt, now)
+  const schedule = scheduleFromCreatedAt(createdAt)
+  const legacyRound1 = record.round1Completed === true
+  const legacyRound2 = record.round2Completed === true
+  const round1 = normalizeRound(record.round1, schedule.round1, makeZoomLink(id, 1), legacyRound1)
+  const round2 = normalizeRound(record.round2, schedule.round2, makeZoomLink(id, 2), legacyRound2)
+  const interviewDate = /^\d{4}-\d{2}-\d{2}$/.test(text(record.interviewDate))
+    ? text(record.interviewDate)
+    : schedule.interviewDate
+  const bossRequestedAt = optionalIso(record.bossRequestedAt)
+    || (record.bossRoundInvited === true ? createdAt : undefined)
+  const fallbackEvents: ActivityEvent[] = [
+    { at: createdAt, event: 'Application submitted', detail: `Applied for ${role}.` },
+  ]
+  if (legacyRound1) fallbackEvents.push({ at: createdAt, event: 'Round 1 completed', detail: 'Imported from an earlier build.' })
+  if (legacyRound2) fallbackEvents.push({ at: createdAt, event: 'Round 2 completed', detail: 'Imported from an earlier build.' })
+
+  return {
+    id,
+    role,
+    name,
+    email,
+    phone: text(record.phone),
+    experience: text(record.experience),
+    location: text(record.location),
+    about: typeof record.about === 'string' ? record.about.trim() : '',
+    photoName: text(record.photoName),
+    photoType: text(record.photoType),
+    status: normalizeStatus(record.status),
+    createdAt,
+    updatedAt: isoOr(record.updatedAt, createdAt),
+    interviewDate,
+    round1,
+    round2,
+    bossRequestedAt,
+    bossCompletedAt: optionalIso(record.bossCompletedAt),
+    approvedAt: optionalIso(record.approvedAt),
+    events: normalizeEvents(record.events, fallbackEvents),
+    accountEmail: text(record.accountEmail, email).toLowerCase(),
+  }
+}
+
+function normalizeRound(
+  raw: unknown,
+  fallback: { scheduledAt: string; endsAt: string },
+  zoomLink: string,
+  completed: boolean,
+): InterviewRound {
+  const round = asRecord(raw)
+  const verifiedAt = optionalIso(round.verifiedAt)
+  const completedAt = optionalIso(round.completedAt)
+  return {
+    scheduledAt: isoOr(round.scheduledAt, fallback.scheduledAt),
+    endsAt: isoOr(round.endsAt, fallback.endsAt),
+    zoomLink: text(round.zoomLink, zoomLink),
+    state: normalizeRoundState(round.state, completed),
+    ...(verifiedAt ? { verifiedAt } : {}),
+    ...(completedAt ? { completedAt } : {}),
+  }
+}
+
+function normalizeRoundState(value: unknown, completed: boolean): RoundState {
+  if (value === 'scheduled' || value === 'verified' || value === 'completed') return value
+  return completed ? 'completed' : 'scheduled'
+}
+
+function normalizeStatus(value: unknown): AppStatus {
+  const status = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (status === 'approved' || status === 'hired' || status === 'selected') return 'approved'
+  if (status === 'rejected' || status === 'not selected' || status === 'declined') return 'rejected'
+  return 'pending'
+}
+
+function normalizeEvents(raw: unknown, fallback: ActivityEvent[]): ActivityEvent[] {
+  if (!Array.isArray(raw)) return fallback
+  const events: ActivityEvent[] = []
+  for (const item of raw) {
+    const record = asRecord(item)
+    const at = text(record.at)
+    const event = text(record.event)
+    if (!at || !event) continue
+    events.push({
+      at,
+      event,
+      ...(typeof record.detail === 'string' && record.detail ? { detail: record.detail } : {}),
+    })
+  }
+  return events.length ? events : fallback
+}
+
 function parseList(raw: string | null): Application[] {
   try {
     const value = JSON.parse(raw || '[]')
-    return Array.isArray(value) ? (value as Application[]) : []
+    if (!Array.isArray(value)) return []
+    return value
+      .map(normalizeApplication)
+      .filter((application): application is Application => application !== null)
   } catch {
     return []
   }
@@ -81,7 +207,15 @@ export function scheduleNextDay(): {
   round2: { scheduledAt: string; endsAt: string }
 } {
   const today = istParts()
-  const base = new Date(Date.UTC(today.year, today.month - 1, today.day + 1, 0, 0, 0))
+  return scheduleForDay(today.year, today.month, today.day)
+}
+
+function scheduleForDay(year: number, month: number, day: number): {
+  interviewDate: string
+  round1: { scheduledAt: string; endsAt: string }
+  round2: { scheduledAt: string; endsAt: string }
+} {
+  const base = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0))
   const y = base.getUTCFullYear()
   const m = base.getUTCMonth() + 1
   const d = base.getUTCDate()
@@ -98,6 +232,14 @@ export function scheduleNextDay(): {
       endsAt: new Date(Date.UTC(y, m - 1, d, 7, 40, 0)).toISOString(),
     },
   }
+}
+
+/** Interview windows for a record created on `createdAt` (next IST day). */
+function scheduleFromCreatedAt(createdAt: string) {
+  const created = new Date(createdAt)
+  if (Number.isNaN(created.getTime())) return scheduleNextDay()
+  const ist = new Date(created.getTime() + 5.5 * 60 * 60 * 1000)
+  return scheduleForDay(ist.getUTCFullYear(), ist.getUTCMonth() + 1, ist.getUTCDate())
 }
 
 function hashDigits(input: string, length: number): string {

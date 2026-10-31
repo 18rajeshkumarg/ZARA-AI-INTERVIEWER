@@ -24,6 +24,9 @@ dist-ssr
 *.sw?
 .vite-source-tags.js
 .vercel
+.freebuff/
+tmp-*.mjs
+live-check.png
 .env
 .env.*
 !.env.example

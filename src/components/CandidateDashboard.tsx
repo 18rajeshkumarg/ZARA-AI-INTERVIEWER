@@ -28,7 +28,7 @@ import {
   type InterviewRound,
 } from '../lib/applications'
 import { loadApplicationPhoto, writeCandidateRecord } from '../lib/candidateStorage'
-import { hiredUrl, whatsappNumber } from './Shell'
+import { whatsappNumber } from './Shell'
 import FaceVerification from './FaceVerification'
 
 function RoundCard({
@@ -116,6 +116,7 @@ export default function CandidateDashboard({
 }) {
   const [photoUrl, setPhotoUrl] = useState('')
   const [verifyRound, setVerifyRound] = useState<1 | 2 | null>(null)
+  const [hiredOpen, setHiredOpen] = useState(false)
   const pendingTabRef = useRef<Window | null>(null)
 
   useEffect(() => {
@@ -324,16 +325,57 @@ export default function CandidateDashboard({
                     <b>You are hired.</b>
                   </div>
                   <p className="mt-1 text-sm text-emerald-900/70">
-                    The Boss approved your application. Open the HIRED EMPLOYEE workspace to continue.
+                    The Boss approved your application. Your HIRED EMPLOYEE confirmation is ready.
                   </p>
-                  <a
-                    href={hiredUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setHiredOpen(true)}
+                    aria-expanded={hiredOpen}
                     className="mt-4 inline-flex items-center gap-2 bg-emerald-700 px-5 py-3 font-mono2 text-[11px] uppercase tracking-[0.18em] text-white hover:bg-emerald-800"
                   >
                     HIRED EMPLOYEE <ArrowRight className="h-4 w-4" />
-                  </a>
+                  </button>
+
+                  {hiredOpen && (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mt-5 border border-emerald-400 bg-white p-5"
+                    >
+                      <p className="font-mono2 text-[10px] uppercase tracking-[0.2em] text-emerald-700">
+                        Indica Software · Hiring confirmation
+                      </p>
+                      <h3 className="mt-2 text-2xl font-black text-emerald-900">You are hired!</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-ink/70">
+                        Congratulations, {application.name}. The Boss approved your application for the{' '}
+                        <b>{application.role}</b> role. Your HIRED EMPLOYEE status is now confirmed on this screen.
+                      </p>
+                      <dl className="mt-4 grid gap-3 border-t border-ink/10 pt-4 text-sm sm:grid-cols-3">
+                        <div>
+                          <dt className="font-mono2 text-[10px] uppercase tracking-[0.16em] text-ink/40">Candidate ID</dt>
+                          <dd className="mt-1 font-mono2 text-xs">{application.id}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-mono2 text-[10px] uppercase tracking-[0.16em] text-ink/40">Role</dt>
+                          <dd className="mt-1">{application.role}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-mono2 text-[10px] uppercase tracking-[0.16em] text-ink/40">Approved</dt>
+                          <dd className="mt-1">{formatIST(application.bossCompletedAt || new Date().toISOString())}</dd>
+                        </div>
+                      </dl>
+                      <p className="mt-4 flex items-center gap-2 text-xs text-emerald-800">
+                        <ShieldCheck className="h-3.5 w-3.5" /> Confirmed locally for {application.email}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setHiredOpen(false)}
+                        className="mt-4 inline-flex items-center gap-2 border border-ink/15 px-4 py-2 font-mono2 text-[10px] uppercase tracking-[0.16em] text-ink/60 hover:border-zara hover:text-zara"
+                      >
+                        Back to my interview
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : rejected ? (
                 <div className="mt-5 border border-ink/15 bg-white p-5 text-sm text-ink/65">

@@ -3,7 +3,6 @@ import { ArrowUpRight } from 'lucide-react'
 
 export const brandLogo = `${import.meta.env.BASE_URL}indicasoftware-logo.svg`
 export const companyUrl = 'https://18rajeshkumarg.github.io/indicasoftware/'
-export const hiredUrl = 'https://roles-backend.onrender.com'
 export const whatsappNumber = '917975044149'
 
 export default function Shell({ children }: { children: React.ReactNode }) {

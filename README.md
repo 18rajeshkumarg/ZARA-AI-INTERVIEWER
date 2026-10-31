@@ -23,13 +23,13 @@ Live site: <https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/>
 6. Before a Zoom button opens, the **YOLO face verification** modal checks that exactly one candidate is visible. When it passes, the candidate is redirected to the Zoom round.
 7. Round 2 unlocks only after Round 1 is marked completed.
 8. The **Boss Round** card is hidden until both virtual rounds are completed. It is an in-person round at the Boss location. A WhatsApp button opens a pre-written message to **+91 7975044149** stating that the candidate is selected for the 3rd Interview.
-9. The **HIRED EMPLOYEE** button appears only after the Boss approves the candidate. It links to <https://roles-backend.onrender.com>.
+9. The **HIRED EMPLOYEE** button appears only after the Boss approves the candidate. Clicking it opens a self-contained **You are hired!** confirmation on the candidate screen — no external site is called.
 
-The 11 hiring roles live in [`shared/roles.js`](shared/roles.js) and are shared by the frontend and the optional server prototype.
+The 11 hiring roles live in [`shared/roles.js`](shared/roles.js).
 
 ## Authentication (no external API)
 
-The GitHub Pages build intentionally has **no authentication API** and never calls Render. Create Account and Sign In run entirely in the browser:
+The GitHub Pages build intentionally has **no authentication API**. Create Account and Sign In run entirely in the browser:
 
 - passwords are stored as salted **PBKDF2-SHA-256** hashes (210,000 iterations)
 - **Create account** creates the account and switches straight to **Sign in**
@@ -74,7 +74,7 @@ The review page is local and does not call an API. It reads applications from th
 
 Default passcode: **`ZARA-BOSS-2026`**. Set `VITE_ADMIN_CODE` in `.env` before building to change it.
 
-Approval unlocks the **HIRED EMPLOYEE** button on the candidate screen in that browser. Cross-device review requires the optional server prototype, which the live static site does not use.
+Approval unlocks the **HIRED EMPLOYEE** button on the candidate screen in that browser. Clicking the button shows the local hiring confirmation; nothing is sent to an external service.
 
 ## Run locally
 
@@ -91,10 +91,6 @@ Useful checks:
 npm run lint
 npm run build
 ```
-
-## Optional server prototype
-
-`server/index.js` remains as an optional Express/PostgreSQL API prototype (auth, uploads, admin review). The deployed GitHub Pages site does **not** call it and does not require it. See `.env.example` for its settings.
 
 ## Publish
 
@@ -123,4 +119,3 @@ The workflow is in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml
 | `src/lib/faceVerification.ts` | TensorFlow.js COCO-SSD person detector |
 | `shared/roles.js` | Single source of truth for the 11 roles |
 | `Human_Detection/` | Offline YOLOv8 person-detection analyzer |
-| `server/` | Optional Express/PostgreSQL API prototype (not used by the live site) |

@@ -20,7 +20,7 @@ Live site: <https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/>
    - **Virtual Round 1:** 11:30 AM–11:55 AM IST
    - **Virtual Round 2:** 12:40 PM–1:10 PM IST
 5. The candidate screen shows a **Verify face & join Round** button for each round.
-6. Before a Zoom button opens, the **YOLO face verification** modal checks that exactly one candidate is visible. When it passes, the real Zoom link opens in a new tab. Nothing (and specifically never `about:blank`) opens before verification passes. If the browser blocks the popup, an **Open … on Zoom** button appears inside the modal.
+6. Before a Zoom button opens, the camera check uses TensorFlow.js COCO-SSD person detection and a rough face-area heuristic to check that exactly one person is visible. This is not facial identity verification. When the check passes, the real Zoom link opens in a new tab. Nothing (and specifically never `about:blank`) opens before the check passes. If the browser blocks the popup, an **Open … on Zoom** button appears inside the modal.
 7. **Passing Round 1 unlocks Round 2 automatically.** The hiring team marks Round 1 completed in the review portal, and the candidate's Round 2 Zoom access is granted immediately — there is no separate selection step.
 8. **The hiring team owns completion.** Only the review portal can mark a round completed or not completed; candidates cannot advance themselves. Every confirmed change refreshes the candidate screen automatically.
 9. The **Boss Round** card is hidden until the hiring team confirms both virtual rounds as completed. It is an in-person round at the Boss location. A WhatsApp button opens a pre-written message to **+91 7975044149** stating that the candidate is selected for the 3rd Interview.
@@ -104,7 +104,7 @@ The admin reviews the PDFs, confirms review, and can publish a WhatsApp number. 
 
 After Boss Round completion and hiring approval, both the employee and admin portal show a branded onboarding notice scheduled for the next day, 10:30 AM–1:00 PM IST. It includes the supplied checklist: educational certificates (10th, 10+2, graduation, post-graduation and applicable course certifications); previous-employer pay slips for the last three months; service and relieving letters from all previous employers; three copies each of PAN and Aadhaar (Aadhaar required for credential creation), plus passport for international employees; six white-background passport photographs; cancelled cheque or bank passbook copy (not required for a new bank account); and the signed Indica Software offer letter. The notice warns that candidates with incomplete documents would not be onboarded.
 
-After the Boss Round is completed and the candidate is hired, the admin can prepare an offer letter with the candidate's role and contact details, enter the employer-approved compensation and employment terms, upload an authentic authorized signatory signature, and explicitly issue it. The PDF then appears in the hired candidate's portal for download and color printing. Terms and signature are required; the app does not invent them. This static site does not email the PDF or synchronize it across devices.
+After the Boss Round is completed and the candidate is hired, the admin can prepare an original Indica-branded offer letter with the candidate's role and contact details, enter the employer-approved compensation and employment terms, upload an authentic authorized signatory signature, and explicitly issue it. The PDF then appears in the hired candidate's portal. Download requires a camera check with the COCO-SSD person detector; if the model cannot load, the download remains locked. This is only a one-person presence check, not identity authentication, and is bypassable in a client-only static app. The PDF is not emailed or synchronized across devices. The generated letter uses an original layout rather than reproducing the supplied third-party offer-letter design.
 
 This is a local workflow, not a cross-device employee portal: candidate submissions, the admin passcode gate, review state, offer terms, and employee onboarding status are stored in the browser and are not protected or synchronized by a server. Do not use this static-site flow for confidential employee records or treat generated sample ID/log PDFs as company-issued credentials. Authentic employee ID verification, a QR verification endpoint, cross-device delivery, and enforceable admin-only access require a working authenticated backend.
 
@@ -141,7 +141,7 @@ The workflow is in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml
 | `src/components/Home.tsx` | Home page, role cards, schedule and FAQs |
 | `src/components/RoleApplication.tsx` | Per-role sign-in, application form and submission |
 | `src/components/CandidateDashboard.tsx` | Candidate schedule, Zoom rounds, Boss Round and HIRED EMPLOYEE |
-| `src/components/FaceVerification.tsx` | YOLO/COCO-SSD camera verification modal |
+| `src/components/FaceVerification.tsx` | COCO-SSD person-detection camera check for interview links and offer-letter downloads |
 | `src/components/AdminDashboard.tsx` | Local Boss review and folder connection |
 | `src/components/Shell.tsx` | Header, logo link and footer |
 | `src/lib/auth.ts` | Browser-local PBKDF2 account authentication |

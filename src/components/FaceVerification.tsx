@@ -15,6 +15,8 @@ export default function FaceVerification({
   roundLabel,
   candidateName,
   zoomLink,
+  requireDetector = false,
+  mode = 'interview',
   onVerified,
   onClose,
 }: {
@@ -22,6 +24,8 @@ export default function FaceVerification({
   roundLabel: string
   candidateName: string
   zoomLink: string
+  requireDetector?: boolean
+  mode?: 'interview' | 'presence-check'
   onVerified: (snapshot: string | null, zoomOpened: boolean) => void
   onClose: () => void
 }) {
@@ -58,13 +62,15 @@ export default function FaceVerification({
     verifiedRef.current = true
     setSnapshot(frame)
     setPhase('verified')
-    setMessage('Face verified. Opening your Zoom interview…')
+    setMessage(mode === 'presence-check'
+      ? 'One-person camera check passed. This does not verify your identity.'
+      : 'One person detected. Opening your Zoom interview…')
     closeTimerRef.current = window.setTimeout(() => {
-      // Open the real Zoom URL only after the YOLO check passes. Never open an
+      // Open the real Zoom URL only after person detection passes. Never open an
       // about:blank window up front: if the browser blocks this tab, the
       // candidate gets a visible "Open Zoom" button instead.
       let opened = false
-      if (zoomLink) {
+      if (mode === 'interview' && zoomLink) {
         try {
           opened = Boolean(window.open(zoomLink, '_blank'))
         } catch {
@@ -72,10 +78,12 @@ export default function FaceVerification({
         }
       }
       setAutoOpened(opened)
-      setMessage(opened ? 'Face verified. Opening your Zoom interview…' : 'Face verified. Click below to open your Zoom interview.')
+      if (mode === 'interview') {
+        setMessage(opened ? 'One person detected. Opening your Zoom interview…' : 'One person detected. Click below to open your Zoom interview.')
+      }
       onVerified(frame, opened)
     }, 1200)
-  }, [onVerified, zoomLink])
+  }, [mode, onVerified, zoomLink])
 
   // Start the camera and load the person detector whenever the modal opens.
   useEffect(() => {
@@ -139,7 +147,12 @@ export default function FaceVerification({
     void start()
 
     modelTimerRef.current = window.setTimeout(() => {
-      if (!detectorRef.current) setModelStatus('unavailable')
+      if (!detectorRef.current) {
+        setModelStatus('unavailable')
+        if (requireDetector) {
+          setMessage('The required person-detection model is taking too long to load. Retry when online; the offer letter remains locked.')
+        }
+      }
     }, 9000)
 
     loadPersonDetector()
@@ -152,14 +165,16 @@ export default function FaceVerification({
       .catch(() => {
         if (cancelled || stoppedRef.current) return
         setModelStatus('unavailable')
-        setMessage('The YOLO model could not load. You can still complete the camera check below.')
+        setMessage(requireDetector
+          ? 'The required person-detection model could not load. Retry when online; the offer letter will remain locked.'
+          : 'The person-detection model could not load. You can still complete the camera check below.')
       })
 
     return () => {
       cancelled = true
       stopCamera()
     }
-  }, [open, attempt, stopCamera])
+  }, [open, attempt, requireDetector, stopCamera])
 
   // Scan the live video until exactly one person is confirmed.
   useEffect(() => {
@@ -220,7 +235,7 @@ export default function FaceVerification({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-label="YOLO face verification">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-label="Camera presence check">
       <div className="w-full max-w-xl border border-white/15 bg-[#101014] text-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-3">
@@ -228,7 +243,9 @@ export default function FaceVerification({
               <ShieldCheck className="h-5 w-5" />
             </span>
             <div>
-              <p className="font-mono2 text-[10px] uppercase tracking-[0.22em] text-white/50">YOLO face verification</p>
+              <p className="font-mono2 text-[10px] uppercase tracking-[0.22em] text-white/50">
+                {mode === 'presence-check' ? 'Camera presence check' : 'Person detection check'}
+              </p>
               <h2 className="text-lg font-black">{roundLabel}</h2>
             </div>
           </div>
@@ -258,9 +275,13 @@ export default function FaceVerification({
                   <img src={snapshot} alt="Verified candidate frame" className="absolute inset-0 h-full w-full object-cover opacity-25" />
                 ) : null}
                 <CheckCircle2 className="relative h-12 w-12 text-emerald-400" />
-                <p className="relative font-mono2 text-xs uppercase tracking-[0.2em] text-emerald-300">Face verified</p>
+                <p className="relative font-mono2 text-xs uppercase tracking-[0.2em] text-emerald-300">
+                  {mode === 'presence-check' ? 'One-person check passed' : 'Person detected'}
+                </p>
                 <p className="relative text-sm text-white/75">
-                  {autoOpened === false
+                  {mode === 'presence-check'
+                    ? 'This camera check does not verify identity.'
+                    : autoOpened === false
                     ? 'Your browser blocked the automatic tab. Click below to open Zoom.'
                     : `Opening ${roundLabel} Zoom…`}
                 </p>
@@ -299,13 +320,13 @@ export default function FaceVerification({
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono2 text-[10px] uppercase tracking-[0.16em] text-white/40">
             <span>People detected: {people}</span>
             <span>
-              YOLO model: {modelStatus === 'ready' ? 'ready' : modelStatus === 'loading' ? 'loading…' : 'unavailable'}
+              Person model: {modelStatus === 'ready' ? 'ready' : modelStatus === 'loading' ? 'loading…' : 'unavailable'}
             </span>
             <span>Camera check runs locally</span>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            {modelStatus === 'unavailable' && phase !== 'verified' && phase !== 'error' && (
+            {modelStatus === 'unavailable' && !requireDetector && phase !== 'verified' && phase !== 'error' && (
               <button type="button" onClick={fallbackVerify} className="inline-flex items-center gap-2 bg-zara px-4 py-2 font-mono2 text-[10px] uppercase tracking-[0.18em] text-white hover:bg-white hover:text-ink">
                 <Camera className="h-3.5 w-3.5" /> Verify with camera
               </button>
@@ -319,8 +340,8 @@ export default function FaceVerification({
           </div>
 
           <p className="mt-4 text-xs leading-relaxed text-white/40">
-            The YOLO person detector checks that exactly one candidate is in frame. The frame is used only for this
-            verification and is not recorded or uploaded.
+            The browser's COCO-SSD person detector checks that exactly one person is in frame; it does not match the
+            person to an identity or verify that the viewer is the named candidate. The frame is not recorded or uploaded.
           </p>
         </div>
       </div>

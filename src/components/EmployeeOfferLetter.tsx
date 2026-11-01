@@ -6,6 +6,7 @@ import {
   type EmployeeOfferLetter as OfferDetails,
 } from '../lib/applications'
 import { downloadEmployeeOfferLetter } from '../lib/employeeOfferLetter'
+import FaceVerification from './FaceVerification'
 
 const requiredFields = [
   ['employerName', 'Legal employer name', 'text'],
@@ -49,6 +50,7 @@ export default function EmployeeOfferLetter({
 }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [verificationOpen, setVerificationOpen] = useState(false)
   const offer = application.employeeOfferLetter
 
   const issueOffer = async (event: FormEvent<HTMLFormElement>) => {
@@ -110,6 +112,16 @@ export default function EmployeeOfferLetter({
     }
   }
 
+  const verifyAndDownload = () => {
+    setError('')
+    setVerificationOpen(true)
+  }
+
+  const completePresenceCheck = () => {
+    setVerificationOpen(false)
+    void download()
+  }
+
   if (!admin && !offer) {
     return (
       <section className="mt-4 border border-sky-200 bg-white p-4">
@@ -132,16 +144,28 @@ export default function EmployeeOfferLetter({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void download()}
+          onClick={verifyAndDownload}
           className="mt-3 inline-flex items-center gap-2 bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-          Download color offer-letter PDF
+          Verify camera presence & download PDF
         </button>
         <p className="mt-2 text-[11px] text-ink/55">
-          Print in color. This PDF is available in this browser-local candidate portal; no email is sent.
+          A one-person camera check is required before download. It does not verify your identity. Print in color. This
+          PDF is available in this browser-local candidate portal; no email is sent.
         </p>
         {error && <p role="alert" className="mt-2 text-xs text-red-700">{error}</p>}
+        <FaceVerification
+          key={`${application.id}-offer-letter`}
+          open={verificationOpen}
+          roundLabel="Offer letter"
+          candidateName={application.name}
+          zoomLink=""
+          requireDetector
+          mode="presence-check"
+          onVerified={completePresenceCheck}
+          onClose={() => setVerificationOpen(false)}
+        />
       </section>
     )
   }

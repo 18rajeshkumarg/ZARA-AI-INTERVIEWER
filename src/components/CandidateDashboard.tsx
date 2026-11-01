@@ -39,6 +39,7 @@ import { trackCandidateActivity } from '../lib/activity'
 import { whatsappNumber } from './Shell'
 import EmployeeCardsShareButton from './EmployeeCardsShareButton'
 import EmployeeVisitCard from './EmployeeVisitCard'
+import EmployeeOfferLetter from './EmployeeOfferLetter'
 import FaceVerification from './FaceVerification'
 
 function RoundCard({
@@ -543,6 +544,9 @@ export default function CandidateDashboard({
                         )}
                         {application.bossCompletedAt && (
                           <EmployeeVisitCard application={application} />
+                        )}
+                        {application.bossCompletedAt && (
+                          <EmployeeOfferLetter application={application} />
                         )}
                         {application.employeeCardsIssuedAt && (
                           <a

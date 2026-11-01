@@ -248,7 +248,6 @@ export async function writeCandidateRecord(application: Application): Promise<bo
       `Employee WhatsApp number: ${application.employeeWhatsappNumber ? `+${application.employeeWhatsappNumber}` : 'not set'}`,
       `Employee WhatsApp confirmed: ${application.employeeWhatsappConfirmedAt || 'not yet'}`,
       `Employee cards issued: ${application.employeeCardsIssuedAt || 'not yet'}`,
-      `Onboarding original documents: ${application.employeeOriginalDocuments || 'checklist not configured'}`,
       `Reapply after: ${application.reapplyAfter || 'not applicable'}`,
       '',
       'Premium employee cards:',

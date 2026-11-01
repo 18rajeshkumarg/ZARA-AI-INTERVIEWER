@@ -29,6 +29,22 @@ export type InterviewRound = {
   completedAt?: string
 }
 
+export type EmployeeOfferLetter = {
+  employerName: string
+  employerAddress: string
+  compensation: string
+  joiningDate: string
+  workLocation: string
+  employmentType: string
+  probation: string
+  workingHours: string
+  benefitsAndConditions: string
+  signatoryName: string
+  signatoryTitle: string
+  signatureDataUrl: string
+  issuedAt: string
+}
+
 export type Application = {
   id: string
   role: string
@@ -68,8 +84,8 @@ export type Application = {
   employeeWhatsappConfirmedAt?: string
   /** When the admin confirmed the employee physically received the cards. */
   employeeCardsIssuedAt?: string
-  /** Admin-provided newline-separated original-document checklist for onboarding. */
-  employeeOriginalDocuments?: string
+  /** Offer details prepared and explicitly issued by the hiring admin. */
+  employeeOfferLetter?: EmployeeOfferLetter
   /** Process changes confirmed by the hiring team. */
   events: ActivityEvent[]
   /** Everything the candidate clicked or opened, tracked for the hiring team. */
@@ -140,6 +156,26 @@ function normalizeApplication(raw: unknown): Application | null {
   if (legacyRound1) fallbackEvents.push({ at: createdAt, event: 'Round 1 completed', detail: 'Imported from an earlier build.' })
   if (legacyRound2) fallbackEvents.push({ at: createdAt, event: 'Round 2 completed', detail: 'Imported from an earlier build.' })
 
+  const rawOfferLetter = asRecord(record.employeeOfferLetter)
+  const issuedAt = optionalIso(rawOfferLetter.issuedAt)
+  const employeeOfferLetter = issuedAt
+    ? {
+      employerName: text(rawOfferLetter.employerName),
+      employerAddress: text(rawOfferLetter.employerAddress),
+      compensation: text(rawOfferLetter.compensation),
+      joiningDate: text(rawOfferLetter.joiningDate),
+      workLocation: text(rawOfferLetter.workLocation),
+      employmentType: text(rawOfferLetter.employmentType),
+      probation: text(rawOfferLetter.probation),
+      workingHours: text(rawOfferLetter.workingHours),
+      benefitsAndConditions: text(rawOfferLetter.benefitsAndConditions),
+      signatoryName: text(rawOfferLetter.signatoryName),
+      signatoryTitle: text(rawOfferLetter.signatoryTitle),
+      signatureDataUrl: text(rawOfferLetter.signatureDataUrl),
+      issuedAt,
+    }
+    : undefined
+
   return {
     id,
     role,
@@ -169,7 +205,7 @@ function normalizeApplication(raw: unknown): Application | null {
     employeeWhatsappNumber: text(record.employeeWhatsappNumber),
     employeeWhatsappConfirmedAt: optionalIso(record.employeeWhatsappConfirmedAt),
     employeeCardsIssuedAt: optionalIso(record.employeeCardsIssuedAt),
-    employeeOriginalDocuments: text(record.employeeOriginalDocuments),
+    employeeOfferLetter,
     events: normalizeEvents(record.events, fallbackEvents),
     activity: normalizeEvents(record.activity, []),
     accountEmail: text(record.accountEmail, email).toLowerCase(),

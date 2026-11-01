@@ -29,6 +29,7 @@ import {
   withEvent,
   type AppStatus,
   type Application,
+  type EmployeeOfferLetter as EmployeeOfferDetails,
   type RoundState,
 } from '../lib/applications'
 import {
@@ -43,6 +44,7 @@ import { readSiteActivity, type SiteActivity } from '../lib/activity'
 import EmployeeCardsModal from './EmployeeCardsModal'
 import EmployeeDetailsPanel from './EmployeeDetailsPanel'
 import EmployeeVisitCard from './EmployeeVisitCard'
+import EmployeeOfferLetter from './EmployeeOfferLetter'
 
 const adminCode = import.meta.env.VITE_ADMIN_CODE || 'ZARA-BOSS-2026'
 const unlockKey = 'zara_admin_unlocked'
@@ -468,12 +470,13 @@ export default function AdminDashboard() {
     })
   }
 
-  const setEmployeeOriginalDocuments = (application: Application, documents: string) => {
+  const issueEmployeeOffer = (application: Application, offer: EmployeeOfferDetails) => {
     applyUpdate(application.id, (current) => {
       if (current.status !== 'approved' || !current.bossCompletedAt) return current
       return withEvent(
-        { ...current, employeeOriginalDocuments: documents || undefined },
-        'Onboarding original-document checklist updated by admin',
+        { ...current, employeeOfferLetter: offer },
+        'Employment offer letter issued to candidate portal',
+        `${current.role} offer PDF is available in this browser-local candidate portal.`,
       )
     })
   }
@@ -788,10 +791,13 @@ export default function AdminDashboard() {
                         />
                       )}
                       {approved && application.bossCompletedAt && (
-                        <EmployeeVisitCard
+                        <EmployeeVisitCard application={application} />
+                      )}
+                      {approved && application.bossCompletedAt && (
+                        <EmployeeOfferLetter
                           application={application}
-                          editable
-                          onSaveDocuments={(documents) => setEmployeeOriginalDocuments(application, documents)}
+                          admin
+                          onIssue={(offer) => issueEmployeeOffer(application, offer)}
                         />
                       )}
 

@@ -1,14 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { BadgeCheck, Download, Eye, MessageCircle, ShieldCheck } from 'lucide-react'
 import {
-  employeeWhatsappLink,
   formatIST,
   whatsappNumberValid,
   type Application,
 } from '../lib/applications'
 
 /**
- * Admin-only view of the hired employee's Premium cards. The admin can view and
+ * Local admin view of the hired employee's sample reference cards. The admin can view and
  * download the official PDFs, publish the WhatsApp confirmation number, and
  * confirm that the employee physically received the cards. Card content itself
  * is never editable here.
@@ -57,7 +56,7 @@ export default function EmployeeDetailsPanel({
   return (
     <div className="mt-3 border border-emerald-200 bg-emerald-50/50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold">Employee onboarding · Premium cards</p>
+        <p className="text-sm font-semibold">Employee onboarding · sample cards</p>
         <span className="border border-emerald-300 bg-white px-2 py-0.5 font-mono2 text-[9px] uppercase tracking-[0.14em] text-emerald-800">
           {stage}
         </span>
@@ -65,13 +64,13 @@ export default function EmployeeDetailsPanel({
 
       {!sent ? (
         <p className="mt-2 text-xs leading-relaxed text-ink/60">
-          Waiting for the hired employee to press <b>Send EMPLOYEE Details</b> on their dashboard. The Premium
-          Employee ID card and the Premium Office Log-in / Log-out card appear here automatically after that.
+          Waiting for the hired employee to press <b>Send EMPLOYEE Details</b> on their dashboard. Sample reference
+          PDFs appear here after that.
         </p>
       ) : (
         <>
           <p className="mt-2 text-xs leading-relaxed text-ink/60">
-            Employee details received {formatIST(sent)}. View or download the official PDFs. Each page is exactly
+            Employee details received {formatIST(sent)}. View or download the sample reference PDFs. Each page is exactly
             85.6 × 54 mm, so print or xerox at <b>100% / Actual size</b> to get a card — never fit-to-A4.
           </p>
           <button
@@ -79,7 +78,7 @@ export default function EmployeeDetailsPanel({
             onClick={onViewCards}
             className="mt-2 inline-flex items-center gap-1.5 border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:border-emerald-600"
           >
-            <Download className="h-3.5 w-3.5" /> View / download EMPLOYEE cards (PDF)
+            <Download className="h-3.5 w-3.5" /> View / download sample cards (PDF)
           </button>
 
           {!reviewed ? (
@@ -124,10 +123,10 @@ export default function EmployeeDetailsPanel({
                     </span>
                   )}
                 </div>
-                {confirmed && employeeWhatsappLink(application) && (
+                {confirmed && number && (
                   <p className="mt-2 text-[11px] text-ink/50">
-                    The employee sees one WhatsApp button that opens this number only, with the pre-written confirmation
-                    message.
+                    The employee share action includes both PDF files. They must select +{number} in the device
+                    share flow and confirm Send; WhatsApp does not let this page lock a recipient.
                   </p>
                 )}
                 {error && <p role="alert" className="mt-2 text-xs text-red-700">{error}</p>}

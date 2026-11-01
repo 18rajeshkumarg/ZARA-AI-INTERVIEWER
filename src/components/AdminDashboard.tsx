@@ -42,6 +42,7 @@ import {
 import { readSiteActivity, type SiteActivity } from '../lib/activity'
 import EmployeeCardsModal from './EmployeeCardsModal'
 import EmployeeDetailsPanel from './EmployeeDetailsPanel'
+import EmployeeVisitCard from './EmployeeVisitCard'
 
 const adminCode = import.meta.env.VITE_ADMIN_CODE || 'ZARA-BOSS-2026'
 const unlockKey = 'zara_admin_unlocked'
@@ -467,6 +468,16 @@ export default function AdminDashboard() {
     })
   }
 
+  const setEmployeeOriginalDocuments = (application: Application, documents: string) => {
+    applyUpdate(application.id, (current) => {
+      if (current.status !== 'approved' || !current.bossCompletedAt) return current
+      return withEvent(
+        { ...current, employeeOriginalDocuments: documents || undefined },
+        'Onboarding original-document checklist updated by admin',
+      )
+    })
+  }
+
   const connectFolder = async () => {
     setBusy(true)
     const name = await connectProjectDirectory()
@@ -774,6 +785,13 @@ export default function AdminDashboard() {
                           onConfirmCardsReviewed={() => confirmEmployeeCardsReviewed(application)}
                           onSaveWhatsapp={(number) => setEmployeeWhatsapp(application, number)}
                           onSetCardsIssued={(issued) => setEmployeeCardsIssued(application, issued)}
+                        />
+                      )}
+                      {approved && application.bossCompletedAt && (
+                        <EmployeeVisitCard
+                          application={application}
+                          editable
+                          onSaveDocuments={(documents) => setEmployeeOriginalDocuments(application, documents)}
                         />
                       )}
 

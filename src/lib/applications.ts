@@ -68,6 +68,8 @@ export type Application = {
   employeeWhatsappConfirmedAt?: string
   /** When the admin confirmed the employee physically received the cards. */
   employeeCardsIssuedAt?: string
+  /** Admin-provided newline-separated original-document checklist for onboarding. */
+  employeeOriginalDocuments?: string
   /** Process changes confirmed by the hiring team. */
   events: ActivityEvent[]
   /** Everything the candidate clicked or opened, tracked for the hiring team. */
@@ -167,6 +169,7 @@ function normalizeApplication(raw: unknown): Application | null {
     employeeWhatsappNumber: text(record.employeeWhatsappNumber),
     employeeWhatsappConfirmedAt: optionalIso(record.employeeWhatsappConfirmedAt),
     employeeCardsIssuedAt: optionalIso(record.employeeCardsIssuedAt),
+    employeeOriginalDocuments: text(record.employeeOriginalDocuments),
     events: normalizeEvents(record.events, fallbackEvents),
     activity: normalizeEvents(record.activity, []),
     accountEmail: text(record.accountEmail, email).toLowerCase(),
@@ -366,6 +369,30 @@ export function formatISTTime(iso: string): string {
   } catch {
     return iso
   }
+}
+
+/** Next-day onboarding window after both hiring approval and Boss Round completion. */
+export function employeeOnboardingWindow(application: Application): { start: string; end: string } | null {
+  if (application.status !== 'approved' || !application.bossCompletedAt) return null
+
+  const milestones = [application.bossCompletedAt, application.approvedAt]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value))
+    .filter((value) => !Number.isNaN(value.getTime()))
+  if (!milestones.length) return null
+
+  const latest = new Date(Math.max(...milestones.map((value) => value.getTime())))
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(latest)
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value)
+  const nextDayAt1030 = Date.UTC(part('year'), part('month') - 1, part('day') + 1, 5, 0)
+  const start = new Date(nextDayAt1030)
+  const end = new Date(nextDayAt1030 + 150 * 60 * 1000)
+  return { start: start.toISOString(), end: end.toISOString() }
 }
 
 export function formatInterviewDate(interviewDate: string): string {
@@ -624,7 +651,7 @@ export function whatsappNumberValid(value: string): boolean {
 export function employeeWhatsappLink(application: Application): string {
   const number = application.employeeWhatsappNumber || ''
   if (!number) return ''
-  const message = `Hello, I am ${application.name} (${employeeCode(application)}). I have received my Premium Employee ID Card and my Premium Employee Office Log-in / Log-out Card from Indica Software for the ${application.role} role. This is my confirmation message.`
+  const message = `Hello, I am ${application.name} (${employeeCode(application)}), a hired employee for the ${application.role} role. Please arrange issuance of my Employee ID card and office log-in / log-out card. I can provide any required details for onboarding.`
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
 }
 

@@ -24,7 +24,6 @@ import {
   canReapply,
   decisionLabel,
   employeePortalUrl,
-  employeeWhatsappLink,
   formatIST,
   formatISTTime,
   formatInterviewDate,
@@ -38,6 +37,8 @@ import {
 import { loadApplicationPhoto, writeCandidateRecord } from '../lib/candidateStorage'
 import { trackCandidateActivity } from '../lib/activity'
 import { whatsappNumber } from './Shell'
+import EmployeeCardsShareButton from './EmployeeCardsShareButton'
+import EmployeeVisitCard from './EmployeeVisitCard'
 import FaceVerification from './FaceVerification'
 
 function RoundCard({
@@ -513,10 +514,10 @@ export default function CandidateDashboard({
                         <ShieldCheck className="h-3.5 w-3.5" /> Confirmed locally for {application.email}
                       </p>
                       <div className="mt-5 border-t border-ink/10 pt-4">
-                        <p className="text-sm font-semibold text-ink">Premium employee cards</p>
+                        <p className="text-sm font-semibold text-ink">Employee card PDF attachments</p>
                         <p className="mt-1 text-xs leading-relaxed text-ink/60">
-                          Send your employee details to the hiring review in this browser. The PDFs are card-sized
-                          (85.6 × 54 mm); print at 100% / Actual size, not fit-to-page.
+                          After the admin confirms receipt, share both sample PDF references with your confirmation.
+                          Each is card-sized (85.6 × 54 mm); print at 100% / Actual size, not fit-to-page.
                         </p>
                         {!application.employeeDetailsSentAt ? (
                           <button
@@ -532,16 +533,16 @@ export default function CandidateDashboard({
                             can now view the cards.
                           </p>
                         )}
-                        {employeeWhatsappLink(application) && (
-                          <a
-                            href={employeeWhatsappLink(application)}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => trackCandidateActivity(application, 'Clicked employee WhatsApp confirmation')}
-                            className="mt-3 inline-flex items-center gap-2 border border-emerald-300 bg-white px-4 py-2.5 text-xs font-semibold text-emerald-800 hover:border-emerald-600"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" /> Confirm card receipt on WhatsApp
-                          </a>
+                        {application.employeeWhatsappConfirmedAt
+                          && application.employeeCardsIssuedAt
+                          && application.employeeWhatsappNumber && (
+                          <EmployeeCardsShareButton
+                            application={application}
+                            recipientNumber={application.employeeWhatsappNumber}
+                          />
+                        )}
+                        {application.bossCompletedAt && (
+                          <EmployeeVisitCard application={application} />
                         )}
                         {application.employeeCardsIssuedAt && (
                           <a

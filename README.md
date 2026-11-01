@@ -96,11 +96,15 @@ Candidates never see these controls and cannot mark a round complete themselves.
 
 Approval unlocks the **HIRED EMPLOYEE** button on the candidate screen in that browser. Clicking the button shows the local hiring confirmation; nothing is sent to an external service.
 
-### Hired employee cards (browser-local)
+### Hired employee onboarding (browser-local)
 
-After hiring, the candidate can select **Send EMPLOYEE Details**. The admin review on the **same browser and device** then exposes two generated PDFs: a Premium Employee ID Card and an Office Log-in / Log-out Card. Each PDF page is exactly **85.6 × 54 mm (CR80)**; print at **100% / Actual size**, with fit-to-page/A4 scaling disabled. The admin reviews the PDFs, confirms the review, and can then publish a WhatsApp number. The candidate's WhatsApp confirmation link targets that number. After the admin records physical card receipt, the candidate sees a link to `https://roles-backend.onrender.com`.
+After hiring, the candidate can select **Send EMPLOYEE Details**. The admin review on the **same browser and device** then exposes two generated, branded sample-reference PDFs: an employee ID-card design and an office log-in / log-out card design. Both pages are exactly **85.6 × 54 mm (CR80)** and include a QR containing only a sample reference code. The cards are prominently marked **SAMPLE ONLY — NOT VALID FOR IDENTIFICATION OR ACCESS**; the QR does not validate identity or employment. Print at **100% / Actual size**, with fit-to-page/A4 scaling disabled.
 
-This is a local workflow, not a cross-device employee portal: candidate submissions, the admin passcode gate, review state, and employee card status are stored in the browser and are not protected or synchronized by a server. Generated PDFs are not transmitted to the backend or automatically messaged; WhatsApp opens a prefilled message for the employee to send. Do not use this static-site flow for confidential employee records or treat the PDFs as verified company-issued credentials. Cross-device delivery and enforceable admin-only access require a working authenticated backend.
+The admin reviews the PDFs, confirms review, and can publish a WhatsApp number. The employee can share the sample PDFs using the device share sheet or open a prefilled WhatsApp request. The share sheet does not restrict its recipient, so the employee must verify the admin-published contact and confirm the send. Nothing is sent automatically. After the admin records physical card receipt, the candidate sees a link to `https://roles-backend.onrender.com`.
+
+After Boss Round completion and hiring approval, both the employee and admin portal show a branded onboarding visit notice scheduled for the next day, 10:30 AM–1:00 PM IST. The admin can enter the exact originals checklist; until one is supplied, the notice asks the employee to confirm the list with the hiring team. The Image 2 attachment was not available as readable checklist text.
+
+This is a local workflow, not a cross-device employee portal: candidate submissions, the admin passcode gate, review state, and employee onboarding status are stored in the browser and are not protected or synchronized by a server. Do not use this static-site flow for confidential employee records or treat generated sample PDFs as company-issued credentials. Authentic employee ID verification, a QR verification endpoint, cross-device delivery, and enforceable admin-only access require a working authenticated backend.
 
 ## Run locally
 

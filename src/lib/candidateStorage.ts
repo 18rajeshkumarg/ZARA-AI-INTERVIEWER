@@ -8,6 +8,7 @@
 // and no error is shown to the candidate.
 
 import type { Application } from './applications'
+import { idCardFilename, logCardFilename } from './employeeCards'
 
 type WritableFile = {
   write(data: Blob | string): Promise<void>
@@ -242,7 +243,17 @@ export async function writeCandidateRecord(application: Application): Promise<bo
       `Boss Round completed: ${application.bossCompletedAt || 'not yet'}`,
       `Selected at: ${application.selectedAt || 'not yet'}`,
       `Hiring status: ${application.status}`,
+      `Employee details sent: ${application.employeeDetailsSentAt || 'not yet'}`,
+      `Employee cards reviewed: ${application.employeeCardsReviewedAt || 'not yet'}`,
+      `Employee WhatsApp number: ${application.employeeWhatsappNumber ? `+${application.employeeWhatsappNumber}` : 'not set'}`,
+      `Employee WhatsApp confirmed: ${application.employeeWhatsappConfirmedAt || 'not yet'}`,
+      `Employee cards issued: ${application.employeeCardsIssuedAt || 'not yet'}`,
       `Reapply after: ${application.reapplyAfter || 'not applicable'}`,
+      '',
+      'Premium employee cards:',
+      `Employee ID card: ../Employee Cards/${idCardFilename(application)}`,
+      `Office log-in / log-out card: ../Employee Cards/${logCardFilename(application)}`,
+      'Card size: 85.6 x 54 mm (print at 100%, never fit-to-A4)',
       '',
       'Process updates:',
       ...(application.events || []).map((event) => `[${event.at}] ${event.event}${event.detail ? ` - ${event.detail}` : ''}`),
@@ -263,7 +274,7 @@ export async function writeCandidateRecord(application: Application): Promise<bo
     } catch {
       existing = ''
     }
-    const line = `[${new Date().toISOString()}] ${application.id} | ${application.name} | ${application.email} | ${application.role} | ${application.status} | round1=${application.round1.state} | round2=${application.round2.state} | round2selection=${application.round2Decision} | selectedAt=${application.selectedAt || '-'} | reapplyAfter=${application.reapplyAfter || '-'}\n`
+    const line = `[${new Date().toISOString()}] ${application.id} | ${application.name} | ${application.email} | ${application.role} | ${application.status} | round1=${application.round1.state} | round2=${application.round2.state} | round2selection=${application.round2Decision} | selectedAt=${application.selectedAt || '-'} | employeeDetailsSent=${application.employeeDetailsSentAt || '-'} | employeeCardsIssued=${application.employeeCardsIssuedAt || '-'} | reapplyAfter=${application.reapplyAfter || '-'}\n`
     const activityStream = await activityHandle.createWritable()
     await activityStream.write(existing + line)
     await activityStream.close()

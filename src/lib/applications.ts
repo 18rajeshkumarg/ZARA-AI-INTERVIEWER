@@ -58,6 +58,16 @@ export type Application = {
   selectedAt?: string
   /** A rejected candidate may reattend the same interview after this date. */
   reapplyAfter?: string
+  /** Hired employee pressed "Send EMPLOYEE Details" (Premium ID + log cards). */
+  employeeDetailsSentAt?: string
+  /** When the admin confirmed reviewing both generated employee card PDFs. */
+  employeeCardsReviewedAt?: string
+  /** WhatsApp number the admin published for the hired employee's confirmation. */
+  employeeWhatsappNumber?: string
+  /** When the admin confirmed the WhatsApp number and published the button. */
+  employeeWhatsappConfirmedAt?: string
+  /** When the admin confirmed the employee physically received the cards. */
+  employeeCardsIssuedAt?: string
   /** Process changes confirmed by the hiring team. */
   events: ActivityEvent[]
   /** Everything the candidate clicked or opened, tracked for the hiring team. */
@@ -152,6 +162,11 @@ function normalizeApplication(raw: unknown): Application | null {
     selectedAt: optionalIso(record.selectedAt)
       || (status === 'approved' ? optionalIso(record.approvedAt) : undefined),
     reapplyAfter,
+    employeeDetailsSentAt: optionalIso(record.employeeDetailsSentAt),
+    employeeCardsReviewedAt: optionalIso(record.employeeCardsReviewedAt),
+    employeeWhatsappNumber: text(record.employeeWhatsappNumber),
+    employeeWhatsappConfirmedAt: optionalIso(record.employeeWhatsappConfirmedAt),
+    employeeCardsIssuedAt: optionalIso(record.employeeCardsIssuedAt),
     events: normalizeEvents(record.events, fallbackEvents),
     activity: normalizeEvents(record.activity, []),
     accountEmail: text(record.accountEmail, email).toLowerCase(),
@@ -569,6 +584,48 @@ export function canReapply(application: Application, now = new Date()): boolean 
 
 export function reapplyDateLabel(application: Application): string {
   return application.reapplyAfter ? formatIST(application.reapplyAfter) : ''
+}
+
+/** Where the hired employee's final onboarding button points. */
+export const employeePortalUrl = 'https://roles-backend.onrender.com'
+
+/**
+ * The company employee number printed on both Premium cards. The candidate ID
+ * is already a zero-padded sequence, so it maps 1:1 and never changes.
+ */
+export function employeeCode(application: Application): string {
+  const digits = application.id.match(/(\d+)/)?.[1] || ''
+  if (digits) return `IND-${digits.padStart(6, '0')}`
+  const cleaned = application.id.replace(/[^a-z0-9]/gi, '').toUpperCase()
+  return `IND-${cleaned.slice(0, 8) || '000000'}`
+}
+
+/**
+ * Accepts the formats an admin is likely to paste (10 digits, leading 0, with
+ * spaces, +91, …) and returns the digits-only international number wa.me needs.
+ */
+export function normalizeWhatsappNumber(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.length === 10) return `91${digits}`
+  if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`
+  return digits
+}
+
+export function whatsappNumberValid(value: string): boolean {
+  const digits = normalizeWhatsappNumber(value)
+  return digits.length >= 11 && digits.length <= 15
+}
+
+/**
+ * The hired employee's confirmation link. It always targets the single number
+ * the admin published — never a number chosen by the candidate.
+ */
+export function employeeWhatsappLink(application: Application): string {
+  const number = application.employeeWhatsappNumber || ''
+  if (!number) return ''
+  const message = `Hello, I am ${application.name} (${employeeCode(application)}). I have received my Premium Employee ID Card and my Premium Employee Office Log-in / Log-out Card from Indica Software for the ${application.role} role. This is my confirmation message.`
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
 }
 
 /**

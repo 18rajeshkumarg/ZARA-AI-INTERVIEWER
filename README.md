@@ -96,6 +96,12 @@ Candidates never see these controls and cannot mark a round complete themselves.
 
 Approval unlocks the **HIRED EMPLOYEE** button on the candidate screen in that browser. Clicking the button shows the local hiring confirmation; nothing is sent to an external service.
 
+### Hired employee cards (browser-local)
+
+After hiring, the candidate can select **Send EMPLOYEE Details**. The admin review on the **same browser and device** then exposes two generated PDFs: a Premium Employee ID Card and an Office Log-in / Log-out Card. Each PDF page is exactly **85.6 × 54 mm (CR80)**; print at **100% / Actual size**, with fit-to-page/A4 scaling disabled. The admin reviews the PDFs, confirms the review, and can then publish a WhatsApp number. The candidate's WhatsApp confirmation link targets that number. After the admin records physical card receipt, the candidate sees a link to `https://roles-backend.onrender.com`.
+
+This is a local workflow, not a cross-device employee portal: candidate submissions, the admin passcode gate, review state, and employee card status are stored in the browser and are not protected or synchronized by a server. Generated PDFs are not transmitted to the backend or automatically messaged; WhatsApp opens a prefilled message for the employee to send. Do not use this static-site flow for confidential employee records or treat the PDFs as verified company-issued credentials. Cross-device delivery and enforceable admin-only access require a working authenticated backend.
+
 ## Run locally
 
 Requirements: Node.js 20+ and npm.

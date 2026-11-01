@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Phone,
   RefreshCw,
+  Send,
   ShieldCheck,
   UserRound,
   Video,
@@ -22,6 +23,8 @@ import { Link } from 'react-router-dom'
 import {
   canReapply,
   decisionLabel,
+  employeePortalUrl,
+  employeeWhatsappLink,
   formatIST,
   formatISTTime,
   formatInterviewDate,
@@ -276,6 +279,17 @@ export default function CandidateDashboard({
     ))
   }
 
+  const sendEmployeeDetails = () => {
+    if (application.status !== 'approved' || application.employeeDetailsSentAt) return
+    const sentAt = new Date().toISOString()
+    update((current) => withEvent(
+      { ...current, employeeDetailsSentAt: current.employeeDetailsSentAt || sentAt },
+      'Hired employee details sent to hiring review',
+      'Premium Employee ID and Office Log-in / Log-out cards are ready for review.',
+    ))
+    trackCandidateActivity(application, 'Clicked "Send EMPLOYEE Details"')
+  }
+
   const round1Done = application.round1.state === 'completed'
   const round2Done = application.round2.state === 'completed'
   const round2Decision = application.round2Decision
@@ -498,6 +512,49 @@ export default function CandidateDashboard({
                       <p className="mt-4 flex items-center gap-2 text-xs text-emerald-800">
                         <ShieldCheck className="h-3.5 w-3.5" /> Confirmed locally for {application.email}
                       </p>
+                      <div className="mt-5 border-t border-ink/10 pt-4">
+                        <p className="text-sm font-semibold text-ink">Premium employee cards</p>
+                        <p className="mt-1 text-xs leading-relaxed text-ink/60">
+                          Send your employee details to the hiring review in this browser. The PDFs are card-sized
+                          (85.6 × 54 mm); print at 100% / Actual size, not fit-to-page.
+                        </p>
+                        {!application.employeeDetailsSentAt ? (
+                          <button
+                            type="button"
+                            onClick={sendEmployeeDetails}
+                            className="mt-3 inline-flex items-center gap-2 bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                          >
+                            <Send className="h-3.5 w-3.5" /> Send EMPLOYEE Details
+                          </button>
+                        ) : (
+                          <p role="status" className="mt-3 text-xs text-emerald-800">
+                            Employee details sent {formatIST(application.employeeDetailsSentAt)}. The hiring review
+                            can now view the cards.
+                          </p>
+                        )}
+                        {employeeWhatsappLink(application) && (
+                          <a
+                            href={employeeWhatsappLink(application)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => trackCandidateActivity(application, 'Clicked employee WhatsApp confirmation')}
+                            className="mt-3 inline-flex items-center gap-2 border border-emerald-300 bg-white px-4 py-2.5 text-xs font-semibold text-emerald-800 hover:border-emerald-600"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" /> Confirm card receipt on WhatsApp
+                          </a>
+                        )}
+                        {application.employeeCardsIssuedAt && (
+                          <a
+                            href={employeePortalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => trackCandidateActivity(application, 'Clicked employee portal button')}
+                            className="mt-3 inline-flex items-center gap-2 bg-zara px-4 py-2.5 text-xs font-semibold text-white hover:bg-ink"
+                          >
+                            Continue to employee portal <ArrowRight className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() => setHiredOpen(false)}

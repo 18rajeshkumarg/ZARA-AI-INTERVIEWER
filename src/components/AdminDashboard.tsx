@@ -20,10 +20,12 @@ import {
   formatIST,
   formatISTTime,
   formatInterviewDate,
+  normalizeWhatsappNumber,
   readAllApplications,
   reapplyDateLabel,
   round2DecisionLabel,
   updateApplicationById,
+  whatsappNumberValid,
   withEvent,
   type AppStatus,
   type Application,
@@ -38,6 +40,8 @@ import {
   writeCandidateRecord,
 } from '../lib/candidateStorage'
 import { readSiteActivity, type SiteActivity } from '../lib/activity'
+import EmployeeCardsModal from './EmployeeCardsModal'
+import EmployeeDetailsPanel from './EmployeeDetailsPanel'
 
 const adminCode = import.meta.env.VITE_ADMIN_CODE || 'ZARA-BOSS-2026'
 const unlockKey = 'zara_admin_unlocked'
@@ -185,6 +189,7 @@ export default function AdminDashboard() {
   const [code, setCode] = useState('')
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(unlockKey) === '1')
   const [applications, setApplications] = useState<Application[]>([])
+  const [cardsApplication, setCardsApplication] = useState<Application | null>(null)
   const [photos, setPhotos] = useState<Record<string, string>>({})
   const [siteActivity, setSiteActivity] = useState<SiteActivity[]>(() => readSiteActivity())
   const [folder, setFolder] = useState('')
@@ -411,6 +416,55 @@ export default function AdminDashboard() {
         ? 'Boss Round marked complete by hiring review'
         : 'Boss Round marked not complete by hiring review',
     ))
+  }
+
+  const setEmployeeWhatsapp = (application: Application, raw: string) => {
+    if (!whatsappNumberValid(raw)) {
+      setError('Enter a valid WhatsApp number with country code.')
+      return
+    }
+    const number = normalizeWhatsappNumber(raw)
+    applyUpdate(application.id, (current) => {
+      if (current.status !== 'approved' || !current.employeeDetailsSentAt || !current.employeeCardsReviewedAt) return current
+      return withEvent(
+        {
+          ...current,
+          employeeWhatsappNumber: number,
+          employeeWhatsappConfirmedAt: new Date().toISOString(),
+        },
+        'Employee WhatsApp confirmation number published',
+        'The hired employee WhatsApp button is now available.',
+      )
+    })
+  }
+
+  const confirmEmployeeCardsReviewed = (application: Application) => {
+    applyUpdate(application.id, (current) => {
+      if (current.status !== 'approved' || !current.employeeDetailsSentAt) return current
+      return withEvent(
+        {
+          ...current,
+          employeeCardsReviewedAt: current.employeeCardsReviewedAt || new Date().toISOString(),
+        },
+        'Premium employee cards reviewed by admin',
+      )
+    })
+  }
+
+  const setEmployeeCardsIssued = (application: Application, issued: boolean) => {
+    applyUpdate(application.id, (current) => {
+      if (current.status !== 'approved' || !current.employeeDetailsSentAt) return current
+      if (issued && (!current.employeeCardsReviewedAt || !current.employeeWhatsappConfirmedAt)) return current
+      return withEvent(
+        {
+          ...current,
+          employeeCardsIssuedAt: issued ? new Date().toISOString() : undefined,
+        },
+        issued
+          ? 'Premium employee cards confirmed received by admin'
+          : 'Premium employee card receipt confirmation undone by admin',
+      )
+    })
   }
 
   const connectFolder = async () => {
@@ -713,6 +767,16 @@ export default function AdminDashboard() {
                         )}
                       </div>
 
+                      {approved && (
+                        <EmployeeDetailsPanel
+                          application={application}
+                          onViewCards={() => setCardsApplication(application)}
+                          onConfirmCardsReviewed={() => confirmEmployeeCardsReviewed(application)}
+                          onSaveWhatsapp={(number) => setEmployeeWhatsapp(application, number)}
+                          onSetCardsIssued={(issued) => setEmployeeCardsIssued(application, issued)}
+                        />
+                      )}
+
                       <details className="mt-3 text-xs text-ink/50">
                         <summary className="cursor-pointer">Process updates · {application.events.length} entries</summary>
                         <ul className="mt-2 space-y-1">
@@ -745,6 +809,14 @@ export default function AdminDashboard() {
           </>
         )}
       </main>
+      {cardsApplication && (
+        <EmployeeCardsModal
+          key={cardsApplication.id}
+          application={cardsApplication}
+          open
+          onClose={() => setCardsApplication(null)}
+        />
+      )}
     </div>
   )
 }

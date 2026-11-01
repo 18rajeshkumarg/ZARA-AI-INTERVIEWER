@@ -7,6 +7,12 @@
 
 export type RoundState = 'scheduled' | 'verified' | 'completed'
 export type AppStatus = 'pending' | 'approved' | 'rejected'
+/**
+ * The hiring team decides whether a candidate moves from Round 1 to Round 2.
+ * Round 2 stays locked until this is `selected`, and a `rejected` decision ends
+ * the application after Round 1.
+ */
+export type Round2Decision = 'pending' | 'selected' | 'rejected'
 
 export type ActivityEvent = {
   at: string
@@ -40,10 +46,16 @@ export type Application = {
   interviewDate: string
   round1: InterviewRound
   round2: InterviewRound
+  round2Decision: Round2Decision
   bossRequestedAt?: string
   bossCompletedAt?: string
   approvedAt?: string
+  /** A rejected candidate may reattend the same interview after this date. */
+  reapplyAfter?: string
+  /** Process changes confirmed by the hiring team. */
   events: ActivityEvent[]
+  /** Everything the candidate clicked or opened, tracked for the hiring team. */
+  activity: ActivityEvent[]
   accountEmail: string
 }
 
@@ -94,6 +106,16 @@ function normalizeApplication(raw: unknown): Application | null {
     : schedule.interviewDate
   const bossRequestedAt = optionalIso(record.bossRequestedAt)
     || (record.bossRoundInvited === true ? createdAt : undefined)
+  const status = normalizeStatus(record.status)
+  const round2Decision = normalizeRound2Decision(record.round2Decision, {
+    round1Completed: round1.state === 'completed',
+    round2Completed: round2.state === 'completed',
+    status,
+    bossRequestedAt,
+  })
+  const updatedAt = isoOr(record.updatedAt, createdAt)
+  const reapplyAfter = optionalIso(record.reapplyAfter)
+    || (status === 'rejected' ? addMonths(updatedAt, 2) : undefined)
   const fallbackEvents: ActivityEvent[] = [
     { at: createdAt, event: 'Application submitted', detail: `Applied for ${role}.` },
   ]
@@ -111,16 +133,19 @@ function normalizeApplication(raw: unknown): Application | null {
     about: typeof record.about === 'string' ? record.about.trim() : '',
     photoName: text(record.photoName),
     photoType: text(record.photoType),
-    status: normalizeStatus(record.status),
+    status,
     createdAt,
-    updatedAt: isoOr(record.updatedAt, createdAt),
+    updatedAt,
     interviewDate,
     round1,
     round2,
+    round2Decision,
     bossRequestedAt,
     bossCompletedAt: optionalIso(record.bossCompletedAt),
     approvedAt: optionalIso(record.approvedAt),
+    reapplyAfter,
     events: normalizeEvents(record.events, fallbackEvents),
+    activity: normalizeEvents(record.activity, []),
     accountEmail: text(record.accountEmail, email).toLowerCase(),
   }
 }
@@ -153,6 +178,28 @@ function normalizeStatus(value: unknown): AppStatus {
   const status = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (status === 'approved' || status === 'hired' || status === 'selected') return 'approved'
   if (status === 'rejected' || status === 'not selected' || status === 'declined') return 'rejected'
+  return 'pending'
+}
+
+/**
+ * Round 2 access is granted automatically when the hiring team confirms Round 1
+ * as passed. Older records have no explicit decision, so it is inferred:
+ * - Round 1 completed and not rejected → selected for Round 2
+ * - rejected after Round 1 → not selected for Round 2
+ */
+function normalizeRound2Decision(
+  value: unknown,
+  context: {
+    round1Completed: boolean
+    round2Completed: boolean
+    status: AppStatus
+    bossRequestedAt?: string
+  },
+): Round2Decision {
+  if (value === 'pending' || value === 'selected' || value === 'rejected') return value
+  if (context.round2Completed || context.bossRequestedAt || context.status === 'approved') return 'selected'
+  if (context.round1Completed && context.status !== 'rejected') return 'selected'
+  if (context.status === 'rejected' && context.round1Completed && !context.round2Completed) return 'rejected'
   return 'pending'
 }
 
@@ -440,11 +487,19 @@ export function buildApplication(input: NewApplicationInput): Application {
     interviewDate: schedule.interviewDate,
     round1,
     round2,
+    round2Decision: 'pending',
     events: [
       {
         at: now,
         event: 'Application submitted',
         detail: `Applied for ${input.role}. Virtual Round 1 scheduled for ${formatIST(round1.scheduledAt)}.`,
+      },
+    ],
+    activity: [
+      {
+        at: now,
+        event: 'Application submitted',
+        detail: `Role application form completed for ${input.role}.`,
       },
     ],
     accountEmail: input.email,
@@ -464,4 +519,66 @@ export function statusLabel(status: AppStatus): string {
   if (status === 'approved') return 'Hired'
   if (status === 'rejected') return 'Not selected'
   return 'In progress'
+}
+
+export function round2DecisionLabel(decision: Round2Decision): string {
+  if (decision === 'selected') return 'Selected for Round 2'
+  if (decision === 'rejected') return 'Not selected for Round 2'
+  return 'Awaiting Round 2 decision'
+}
+
+/** Adds calendar months to an ISO timestamp (used for the 2-month reapply wait). */
+export function addMonths(iso: string, months: number): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return new Date().toISOString()
+  const target = new Date(date.getTime())
+  target.setMonth(target.getMonth() + months)
+  return target.toISOString()
+}
+
+/**
+ * A rejected candidate can reattend the same interview once two months have
+ * passed. The waiting period is meant for upskilling.
+ */
+export function canReapply(application: Application, now = new Date()): boolean {
+  if (application.status !== 'rejected') return false
+  if (!application.reapplyAfter) return false
+  const eligible = new Date(application.reapplyAfter)
+  return !Number.isNaN(eligible.getTime()) && eligible.getTime() <= now.getTime()
+}
+
+export function reapplyDateLabel(application: Application): string {
+  return application.reapplyAfter ? formatIST(application.reapplyAfter) : ''
+}
+
+/**
+ * Records a candidate click or page view without touching `updatedAt`, so the
+ * candidate's "latest update" banner only reacts to real hiring-team changes.
+ * Returns the updated record so the caller can mirror it into the folder.
+ */
+export function logActivity(id: string, event: string, detail?: string): Application | null {
+  const all = readAllApplications()
+  const index = all.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  const current = all[index]
+  const entry: ActivityEvent = {
+    at: new Date().toISOString(),
+    event,
+    ...(detail ? { detail } : {}),
+  }
+  const updated: Application = {
+    ...current,
+    activity: [...(current.activity || []), entry].slice(-250),
+  }
+  all[index] = updated
+  writeAllApplications(all)
+
+  const accountApps = readApplications(updated.accountEmail)
+  const accountIndex = accountApps.findIndex((item) => item.id === id)
+  if (accountIndex >= 0) accountApps[accountIndex] = updated
+  else accountApps.unshift(updated)
+  writeApplications(updated.accountEmail, accountApps)
+
+  notify(id)
+  return updated
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -36,6 +36,7 @@ import {
   restoreCandidateDirectory,
   saveCandidateApplication,
 } from '../lib/candidateStorage'
+import { trackSiteActivity } from '../lib/activity'
 import CandidateDashboard from './CandidateDashboard'
 import Shell from './Shell'
 
@@ -59,6 +60,8 @@ export default function RoleApplication() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [reapplying, setReapplying] = useState(false)
+  const loggedViewRef = useRef('')
 
   useEffect(() => {
     if (!role) navigate('/', { replace: true })
@@ -68,6 +71,18 @@ export default function RoleApplication() {
     void restoreCandidateDirectory()
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [roleId])
+
+  // Track that the candidate opened this role page (once per role/session).
+  useEffect(() => {
+    if (!role) return
+    const key = `${role}:${sessionEmail}`
+    if (loggedViewRef.current === key) return
+    loggedViewRef.current = key
+    const timer = window.setTimeout(() => {
+      trackSiteActivity(`Role page viewed: ${role}`, 'Application page opened.', sessionEmail || undefined)
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [role, sessionEmail])
 
   useEffect(() => {
     if (!sessionEmail) return
@@ -183,6 +198,12 @@ export default function RoleApplication() {
       await saveCandidateApplication({ application, photo })
       upsertApplication(application)
       setApplications(readApplications(sessionEmail))
+      trackSiteActivity(
+        `Application submitted: ${role}`,
+        `${application.id} · ${application.name}`,
+        sessionEmail,
+      )
+      setReapplying(false)
       setMessage(
         `Application submitted. Your interviews are scheduled for ${formatInterviewDate(application.interviewDate)}: Virtual Round 1 at 11:30 AM and Virtual Round 2 at 12:40 PM IST.`,
       )
@@ -201,11 +222,26 @@ export default function RoleApplication() {
     setApplications([])
     setMode('signin')
     setPassword('')
+    setReapplying(false)
     setMessage('You have signed out.')
     setError('')
   }
 
-  if (sessionEmail && selectedApplication) {
+  const handleReapply = (application: Application) => {
+    setProfile({
+      name: application.name,
+      phone: application.phone,
+      experience: application.experience,
+      location: application.location,
+      about: application.about,
+    })
+    setReapplying(true)
+    setMessage('')
+    setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (sessionEmail && selectedApplication && !reapplying) {
     return (
       <Shell>
         <CandidateDashboard
@@ -214,6 +250,7 @@ export default function RoleApplication() {
             setApplications(readApplications(sessionEmail))
           }}
           onSignOut={handleSignOut}
+          onReapply={() => handleReapply(selectedApplication)}
         />
       </Shell>
     )
@@ -225,6 +262,22 @@ export default function RoleApplication() {
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-ink/60 hover:text-zara">
           <ArrowLeft className="h-4 w-4" /> All roles
         </Link>
+
+        {reapplying && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-zara/30 bg-red-50/50 p-4 text-sm">
+            <p>
+              <b>Reapplying for {role}.</b> Your 2-month waiting period is over. Submit a fresh application to receive
+              a new interview date, Round 1 and Round 2 Zoom links.
+            </p>
+            <button
+              type="button"
+              onClick={() => setReapplying(false)}
+              className="inline-flex items-center gap-2 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-zara"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to my dashboard
+            </button>
+          </div>
+        )}
 
         <section className="mt-5 border border-ink/15 bg-white p-6 sm:p-9">
           <div className="flex items-start justify-between gap-4">

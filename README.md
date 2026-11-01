@@ -19,11 +19,15 @@ Live site: <https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/>
 4. On submit, the next day is reserved automatically:
    - **Virtual Round 1:** 11:30 AM–11:55 AM IST
    - **Virtual Round 2:** 12:40 PM–1:10 PM IST
-5. The candidate screen shows a Zoom button for each round.
-6. Before a Zoom button opens, the **YOLO face verification** modal checks that exactly one candidate is visible. When it passes, the candidate is redirected to the Zoom round.
-7. Round 2 unlocks only after Round 1 is marked completed.
-8. The **Boss Round** card is hidden until both virtual rounds are completed. It is an in-person round at the Boss location. A WhatsApp button opens a pre-written message to **+91 7975044149** stating that the candidate is selected for the 3rd Interview.
-9. The **HIRED EMPLOYEE** button appears only after the Boss approves the candidate. Clicking it opens a self-contained **You are hired!** confirmation on the candidate screen — no external site is called.
+5. The candidate screen shows a **Verify face & join Round** button for each round.
+6. Before a Zoom button opens, the **YOLO face verification** modal checks that exactly one candidate is visible. When it passes, the real Zoom link opens in a new tab. Nothing (and specifically never `about:blank`) opens before verification passes. If the browser blocks the popup, an **Open … on Zoom** button appears inside the modal.
+7. **Passing Round 1 unlocks Round 2 automatically.** The hiring team marks Round 1 completed in the review portal, and the candidate's Round 2 Zoom access is granted immediately — there is no separate selection step.
+8. **The hiring team owns completion.** Only the review portal can mark a round completed or not completed; candidates cannot advance themselves. Every confirmed change refreshes the candidate screen automatically.
+9. The **Boss Round** card is hidden until the hiring team confirms both virtual rounds as completed. It is an in-person round at the Boss location. A WhatsApp button opens a pre-written message to **+91 7975044149** stating that the candidate is selected for the 3rd Interview.
+10. The hiring team confirms the final outcome with **Selected** or **Rejected**. **HIRED EMPLOYEE** appears only after the Boss approves (Selected after the Boss Round).
+11. A **rejected** candidate can reattend the same interview after a **2-month** waiting period, which is meant for upskilling. Their dashboard shows the exact reapply date and unlocks a **Reapply for this role** button when the date arrives.
+
+Candidates cannot submit or move forward with missing details: name, email, phone, experience, location, about, and a face photo are all required, and the form is validated before an application is created.
 
 The 11 hiring roles live in [`shared/roles.js`](shared/roles.js).
 
@@ -53,7 +57,7 @@ Candidate Applications/
 └── activity.txt
 ```
 
-Each candidate text file contains the candidate details, both interview times, both Zoom links, round status, Boss Round status and the activity trail.
+Each candidate text file contains the candidate details, both interview times, both Zoom links, round status, Round 2 selection, the reapply date (when rejected), process updates and the candidate's tracked activity. `activity.txt` keeps one line per save so the hiring team has a chronological log.
 
 The folder is selected **once** with the File System Access API and the directory handle is persisted in IndexedDB. Later submissions reuse it silently — there is no folder picker and no `showDirectoryPicker` abort error for the candidate. If the folder is not available (new device, revoked permission or unsupported browser), the application still saves in the browser and the candidate sees no error.
 
@@ -65,14 +69,28 @@ Records written by older builds (details only, no schedule) can be completed in 
 
 ## Hiring review (`#/admin`)
 
-The review page is local and does not call an API. It reads applications from this browser and lets the Boss:
+The review page is local and does not call an API. It is **not linked anywhere on the candidate site** — the only way in is the direct URL <https://18rajeshkumarg.github.io/ZARA-AI-INTERVIEWER/#/admin>. It reads the applications saved in this browser and lets the Boss:
 
-- mark Round 1 and Round 2 complete
-- record the Boss Round request / completion
-- approve a candidate (only after both virtual rounds and the Boss Round)
-- reject a candidate
+- edit the **Round 1** and **Round 2 Zoom links** (the candidate screen picks them up after the next confirmed change)
+- mark **Round 1 completed / not completed** — completing Round 1 is the pass decision and grants Round 2 access automatically
+- mark **Round 2 completed / not completed**
+- record the **Boss Round** request and completion
+- confirm the outcome with a single **Selected / Rejected** pair:
+  - **Selected** before Round 2 grants Round 2 access
+  - **Selected** after the Boss Round approves the candidate and unlocks **HIRED EMPLOYEE**
+  - **Rejected** closes the application and starts the candidate's **2-month** upskilling/reapply period
+- review the **process updates** and the automatically tracked **candidate activity** (every click, page view and verification) per candidate, plus the site-wide activity log
+- **Connect folder** so records are mirrored into `Candidate Applications/`
 
-Default passcode: **`ZARA-BOSS-2026`**. Set `VITE_ADMIN_CODE` in `.env` before building to change it.
+Candidates never see these controls and cannot mark a round complete themselves.
+
+### Boss passcode
+
+- Default passcode: **`ZARA-BOSS-2026`**
+- Set `VITE_ADMIN_CODE` in `.env` (or the Pages build environment) before building to change it. The value is compiled into the bundle, so treat it as a client-side gate, not a server secret.
+- A correct passcode stores `zara_admin_unlocked` in `sessionStorage`, so the tab stays unlocked until it is closed. **Sign out** clears it immediately.
+- Opening `#/admin` without the passcode shows only the passcode form; no candidate data is rendered.
+- Because everything is browser-local, the review page can only see applications saved in the same browser/device.
 
 Approval unlocks the **HIRED EMPLOYEE** button on the candidate screen in that browser. Clicking the button shows the local hiring confirmation; nothing is sent to an external service.
 

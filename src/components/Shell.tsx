@@ -36,8 +36,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <a href={companyUrl} className="text-white hover:text-zara">Indica Software</a> · Careers and interview information
         </p>
         <p className="mt-2 text-xs text-white/35">
-          Virtual rounds 11:30 AM–11:55 AM and 12:40 PM–1:10 PM IST · Boss Round in person ·{' '}
-          <Link to="/admin" className="underline hover:text-white/60">Hiring review</Link>
+          Virtual rounds 11:30 AM–11:55 AM and 12:40 PM–1:10 PM IST · Boss Round in person
         </p>
       </footer>
     </div>

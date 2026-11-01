@@ -12,15 +12,19 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  RefreshCw,
   ShieldCheck,
   UserRound,
   Video,
+  X,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
+  canReapply,
   formatIST,
   formatISTTime,
   formatInterviewDate,
+  reapplyDateLabel,
   statusLabel,
   updateApplicationById,
   withEvent,
@@ -28,6 +32,7 @@ import {
   type InterviewRound,
 } from '../lib/applications'
 import { loadApplicationPhoto, writeCandidateRecord } from '../lib/candidateStorage'
+import { trackCandidateActivity } from '../lib/activity'
 import { whatsappNumber } from './Shell'
 import FaceVerification from './FaceVerification'
 
@@ -35,19 +40,38 @@ function RoundCard({
   number,
   round,
   unlocked,
+  rejected,
+  blockedMessage,
   onJoin,
-  onComplete,
 }: {
   number: 1 | 2
   round: InterviewRound
   unlocked: boolean
+  rejected?: boolean
+  blockedMessage?: string
   onJoin: () => void
-  onComplete: () => void
 }) {
   const completed = round.state === 'completed'
   const verified = round.state === 'verified'
+  const badge = rejected
+    ? 'Not selected'
+    : completed
+      ? 'Completed'
+      : verified
+        ? 'Face verified'
+        : unlocked
+          ? 'Scheduled'
+          : 'Locked'
+  const badgeClass = rejected
+    ? 'border-red-300 bg-red-50 text-red-800'
+    : completed
+      ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+      : verified
+        ? 'border-amber-300 bg-amber-50 text-amber-800'
+        : 'border-ink/15 bg-white text-ink/55'
+
   return (
-    <div className={`border p-5 ${completed ? 'border-emerald-300 bg-emerald-50/40' : 'border-ink/15 bg-paper'}`}>
+    <div className={`border p-5 ${completed ? 'border-emerald-300 bg-emerald-50/40' : rejected ? 'border-red-200 bg-red-50/30' : 'border-ink/15 bg-paper'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-mono2 text-[10px] uppercase tracking-[0.18em] text-zara">Virtual · Zoom</p>
@@ -56,15 +80,20 @@ function RoundCard({
             {formatISTTime(round.scheduledAt)} – {formatISTTime(round.endsAt)} IST
           </p>
         </div>
-        <span className={`border px-2 py-1 font-mono2 text-[9px] uppercase tracking-[0.14em] ${completed ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : verified ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-ink/15 bg-white text-ink/55'}`}>
-          {completed ? 'Completed' : verified ? 'Face verified' : unlocked ? 'Scheduled' : 'Locked'}
+        <span className={`border px-2 py-1 font-mono2 text-[9px] uppercase tracking-[0.14em] ${badgeClass}`}>
+          {badge}
         </span>
       </div>
 
-      {!unlocked && !completed ? (
+      {rejected ? (
+        <div className="mt-4 flex items-start gap-2 border border-red-200 bg-white p-3 text-sm text-red-800">
+          <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
+          You were not selected for Round 2. The hiring team ended the process after Round 1.
+        </div>
+      ) : !unlocked && !completed ? (
         <div className="mt-4 flex items-start gap-2 border border-ink/10 bg-white p-3 text-sm text-ink/55">
           <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
-          Complete Round 1 to unlock Round 2. Both rounds are on the same interview day.
+          {blockedMessage || `Round ${number} unlocks after the hiring team confirms the previous step.`}
         </div>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -75,30 +104,59 @@ function RoundCard({
               className="inline-flex items-center gap-2 bg-zara px-4 py-2.5 font-mono2 text-[10px] uppercase tracking-[0.18em] text-white hover:bg-ink"
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              {verified ? `Re-open Round ${number} Zoom` : `Verify face & join Round ${number}`}
-            </button>
-          )}
-          {verified && (
-            <button
-              type="button"
-              onClick={onComplete}
-              className="inline-flex items-center gap-2 border border-ink/20 bg-white px-4 py-2.5 font-mono2 text-[10px] uppercase tracking-[0.18em] hover:border-emerald-600 hover:text-emerald-700"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" /> Mark Round {number} completed
+              {verified ? `Verify face & rejoin Round ${number}` : `Verify face & join Round ${number}`}
             </button>
           )}
         </div>
       )}
 
-      {verified && (
+      {verified && !completed && (
         <p className="mt-3 text-xs leading-relaxed text-ink/50">
-          Face verification passed at {round.verifiedAt ? formatIST(round.verifiedAt) : 'this session'}. After the Zoom
-          call, mark the round completed so the next step unlocks.
+          Face verified at {round.verifiedAt ? formatIST(round.verifiedAt) : 'this session'}. Waiting for the hiring team
+          to confirm this round is completed.
         </p>
       )}
       {completed && (
         <p className="mt-3 flex items-center gap-2 text-xs text-emerald-700">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Completed {round.completedAt ? formatIST(round.completedAt) : ''}
+          <CheckCircle2 className="h-3.5 w-3.5" /> Completed {round.completedAt ? formatIST(round.completedAt) : ''} ·
+          confirmed by the hiring team
+        </p>
+      )}
+      {!completed && !verified && !rejected && unlocked && (
+        <p className="mt-3 text-xs leading-relaxed text-ink/50">
+          Join when you are ready. YOLO face verification runs first, then the Zoom link opens.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ReapplyNotice({
+  application,
+  eligible,
+  onReapply,
+}: {
+  application: Application
+  eligible: boolean
+  onReapply: () => void
+}) {
+  return (
+    <div className="mt-4 border-t border-red-200 pt-4">
+      <p className="text-sm text-red-900/80">
+        You can reattend the same interview after the 2-month waiting period ends on{' '}
+        <b>{reapplyDateLabel(application)}</b>. Use this time to upskill the skills required to crack the interview.
+      </p>
+      {eligible ? (
+        <button
+          type="button"
+          onClick={onReapply}
+          className="mt-3 inline-flex items-center gap-2 bg-zara px-4 py-2.5 font-mono2 text-[10px] uppercase tracking-[0.18em] text-white hover:bg-ink"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> Reapply for this role
+        </button>
+      ) : (
+        <p className="mt-2 inline-flex items-center gap-2 text-xs text-red-900/60">
+          <Clock className="h-3.5 w-3.5" /> The reapply button unlocks automatically on that date.
         </p>
       )}
     </div>
@@ -109,15 +167,19 @@ export default function CandidateDashboard({
   application,
   onUpdate,
   onSignOut,
+  onReapply,
 }: {
   application: Application
   onUpdate: (application: Application) => void
   onSignOut: () => void
+  onReapply: () => void
 }) {
   const [photoUrl, setPhotoUrl] = useState('')
   const [verifyRound, setVerifyRound] = useState<1 | 2 | null>(null)
   const [hiredOpen, setHiredOpen] = useState(false)
-  const pendingTabRef = useRef<Window | null>(null)
+  const [notice, setNotice] = useState('')
+  const lastUpdateRef = useRef(application.updatedAt)
+  const loggedViewRef = useRef('')
 
   useEffect(() => {
     let active = true
@@ -133,6 +195,30 @@ export default function CandidateDashboard({
     }
   }, [application.id])
 
+  // Record that the candidate opened the dashboard (once per mount) so the
+  // hiring team can see activity in the review page and the project folder.
+  useEffect(() => {
+    if (loggedViewRef.current === application.id) return
+    loggedViewRef.current = application.id
+    const timer = window.setTimeout(() => {
+      trackCandidateActivity(application, 'Candidate dashboard viewed', `Status: ${statusLabel(application.status)}`)
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [application])
+
+  // The hiring team works from the admin portal. When they confirm a round,
+  // change a Zoom link or update the outcome, this screen refreshes and shows
+  // the latest update without the candidate reloading the page.
+  useEffect(() => {
+    if (application.updatedAt === lastUpdateRef.current) return
+    lastUpdateRef.current = application.updatedAt
+    const latest = application.events[application.events.length - 1]
+    if (!latest) return
+    const text = latest.detail ? `${latest.event} — ${latest.detail}` : latest.event
+    const timer = window.setTimeout(() => setNotice(text), 0)
+    return () => window.clearTimeout(timer)
+  }, [application.updatedAt, application.events])
+
   const update = (updater: (current: Application) => Application) => {
     const updated = updateApplicationById(application.id, updater)
     if (!updated) return null
@@ -142,19 +228,18 @@ export default function CandidateDashboard({
   }
 
   const joinRound = (round: 1 | 2) => {
-    // Open a blank tab while we still have the click gesture. Some browsers
-    // block window.open after the async camera check, so we fill this tab in
-    // once verification succeeds.
-    const tab = window.open('', '_blank')
-    pendingTabRef.current = tab
+    // Never open about:blank. The real Zoom link is opened only after the YOLO
+    // check passes; FaceVerification handles that and falls back to a visible
+    // button if the browser blocks the automatic tab.
+    trackCandidateActivity(application, `Clicked "Verify face & join Round ${round}"`)
     setVerifyRound(round)
   }
 
-  const handleVerified = () => {
+  const handleVerified = (_snapshot: string | null, zoomOpened: boolean) => {
     const round = verifyRound
     if (!round) return
     const key = round === 1 ? 'round1' : 'round2'
-    const updated = update((current) => withEvent(
+    update((current) => withEvent(
       {
         ...current,
         [key]: {
@@ -166,40 +251,20 @@ export default function CandidateDashboard({
       `Round ${round} face verification passed`,
       'YOLO check: exactly one candidate in frame',
     ))
-    setVerifyRound(null)
-    const link = updated
-      ? (round === 1 ? updated.round1.zoomLink : updated.round2.zoomLink)
-      : (round === 1 ? application.round1.zoomLink : application.round2.zoomLink)
-    const tab = pendingTabRef.current
-    pendingTabRef.current = null
-    if (tab && !tab.closed) tab.location.href = link
-    else window.location.href = link
+    trackCandidateActivity(
+      application,
+      `Round ${round} YOLO face verification passed`,
+      zoomOpened ? 'Zoom interview opened in a new tab.' : 'Zoom tab blocked; manual Zoom button shown.',
+    )
+    // If the Zoom tab opened, close the modal. Otherwise keep it open so the
+    // candidate can use the manual "Open Zoom" button.
+    if (zoomOpened) setVerifyRound(null)
   }
 
-  const handleCloseVerification = () => {
-    const tab = pendingTabRef.current
-    pendingTabRef.current = null
-    if (tab && !tab.closed) tab.close()
-    setVerifyRound(null)
-  }
-
-  const completeRound = (round: 1 | 2) => {
-    const key = round === 1 ? 'round1' : 'round2'
-    update((current) => withEvent(
-      {
-        ...current,
-        [key]: {
-          ...current[key],
-          state: 'completed',
-          completedAt: new Date().toISOString(),
-        },
-      },
-      `Round ${round} completed`,
-      `Candidate completed the ${round === 1 ? 'first' : 'second'} virtual interview.`,
-    ))
-  }
+  const handleCloseVerification = () => setVerifyRound(null)
 
   const requestBossRound = () => {
+    trackCandidateActivity(application, 'Clicked "Request Boss Round on WhatsApp"')
     update((current) => withEvent(
       {
         ...current,
@@ -212,11 +277,21 @@ export default function CandidateDashboard({
 
   const round1Done = application.round1.state === 'completed'
   const round2Done = application.round2.state === 'completed'
-  const showBossRound = round1Done && round2Done
+  const round2Decision = application.round2Decision
+  // Passing Round 1 (confirmed by the hiring team) unlocks Round 2 automatically.
+  const round2Unlocked = round1Done && round2Decision !== 'rejected'
+  const round2Rejected = round2Decision === 'rejected'
+  const showBossRound = round1Done && round2Done && !round2Rejected
   const approved = application.status === 'approved'
   const rejected = application.status === 'rejected'
+  const eligibleToReapply = canReapply(application)
   const whatsappMessage = `Hello, I am ${application.name}. I have completed Virtual Round 1 and Virtual Round 2 for the ${application.role} role. I am selected for the 3rd Interview (Boss Round). Please share the in-person Boss location and time. Candidate ID: ${application.id}. Email: ${application.email}. Phone: ${application.phone}.`
   const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`
+  const verificationLink = verifyRound === 1
+    ? application.round1.zoomLink
+    : verifyRound === 2
+      ? application.round2.zoomLink
+      : ''
 
   return (
     <>
@@ -229,6 +304,19 @@ export default function CandidateDashboard({
             <LogOut className="h-4 w-4" /> Sign out
           </button>
         </div>
+
+        {notice && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mt-4 flex items-start justify-between gap-3 border border-zara/30 bg-red-50/60 p-4 text-sm"
+          >
+            <p><b>Latest update:</b> {notice}</p>
+            <button type="button" onClick={() => setNotice('')} aria-label="Dismiss update" className="text-ink/45 hover:text-zara">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <section className="mt-5 border border-ink/15 bg-white">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 p-6">
@@ -283,7 +371,10 @@ export default function CandidateDashboard({
               <p className="font-mono2 text-xs uppercase tracking-[0.24em] text-zara">Your schedule</p>
               <h2 className="mt-1 text-2xl font-black">VIRTUAL INTERVIEWS</h2>
             </div>
-            <p className="text-xs text-ink/45">Face verification is required before every Zoom round.</p>
+            <p className="max-w-md text-right text-xs text-ink/45">
+              Face verification is required before every Zoom round. Round status is confirmed by the hiring team and
+              appears here automatically.
+            </p>
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <RoundCard
@@ -291,17 +382,35 @@ export default function CandidateDashboard({
               round={application.round1}
               unlocked
               onJoin={() => joinRound(1)}
-              onComplete={() => completeRound(1)}
             />
             <RoundCard
               number={2}
               round={application.round2}
-              unlocked={round1Done}
+              unlocked={round2Unlocked}
+              rejected={round2Rejected}
+              blockedMessage={
+                !round1Done
+                  ? 'Waiting for the hiring team to confirm Round 1. Round 2 unlocks automatically when Round 1 is passed.'
+                  : 'Round 1 is passed, but Round 2 is not available for this application.'
+              }
               onJoin={() => joinRound(2)}
-              onComplete={() => completeRound(2)}
             />
           </div>
         </section>
+
+        {round2Rejected && (
+          <section className="mt-6 border border-red-300 bg-red-50 p-5 text-sm text-red-900">
+            <div className="flex items-center gap-2">
+              <X className="h-5 w-5" />
+              <b>Not selected for Round 2.</b>
+            </div>
+            <p className="mt-1 text-red-900/75">
+              The hiring team reviewed your Round 1 interview and did not move you to Round 2. Your application is
+              closed at this stage. Thank you for interviewing with Indica Software.
+            </p>
+            <ReapplyNotice application={application} eligible={eligibleToReapply} onReapply={onReapply} />
+          </section>
+        )}
 
         {showBossRound && (
           <section className="mt-6">
@@ -311,8 +420,8 @@ export default function CandidateDashboard({
                   <p className="font-mono2 text-[10px] uppercase tracking-[0.18em] text-zara">Final round · In person</p>
                   <h2 className="mt-1 text-2xl font-black">BOSS ROUND INTERVIEW</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/65">
-                    Both virtual rounds are complete. The Boss Round is conducted in person at the Boss location only.
-                    Send the pre-written WhatsApp message to request your 3rd Interview slot.
+                    Both virtual rounds are confirmed complete by the hiring team. The Boss Round is conducted in person
+                    at the Boss location only. Send the pre-written WhatsApp message to request your 3rd Interview slot.
                   </p>
                 </div>
                 <MapPin className="h-7 w-7 text-zara" />
@@ -329,7 +438,10 @@ export default function CandidateDashboard({
                   </p>
                   <button
                     type="button"
-                    onClick={() => setHiredOpen(true)}
+                    onClick={() => {
+                      trackCandidateActivity(application, 'Clicked "HIRED EMPLOYEE"')
+                      setHiredOpen(true)
+                    }}
                     aria-expanded={hiredOpen}
                     className="mt-4 inline-flex items-center gap-2 bg-emerald-700 px-5 py-3 font-mono2 text-[11px] uppercase tracking-[0.18em] text-white hover:bg-emerald-800"
                   >
@@ -379,7 +491,8 @@ export default function CandidateDashboard({
                 </div>
               ) : rejected ? (
                 <div className="mt-5 border border-ink/15 bg-white p-5 text-sm text-ink/65">
-                  Your application was not selected after the Boss Round. Thank you for interviewing with Indica Software.
+                  <p>Your application was not selected after the Boss Round. Thank you for interviewing with Indica Software.</p>
+                  <ReapplyNotice application={application} eligible={eligibleToReapply} onReapply={onReapply} />
                 </div>
               ) : application.bossRequestedAt ? (
                 <div className="mt-5 border border-amber-300 bg-amber-50 p-5">
@@ -415,13 +528,13 @@ export default function CandidateDashboard({
           </section>
         )}
 
-        {!showBossRound && (
+        {!showBossRound && !round2Rejected && (
           <section className="mt-6 border border-ink/10 bg-white p-5 text-sm text-ink/55">
             <div className="flex items-start gap-2">
               <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
               <p>
-                The Boss Round is hidden until both Virtual Round 1 and Virtual Round 2 are marked completed. Your
-                progress is saved on this screen.
+                The Boss Round is hidden until the hiring team confirms both Virtual Round 1 and Virtual Round 2 as
+                completed. Status changes appear on this screen automatically.
               </p>
             </div>
           </section>
@@ -455,6 +568,7 @@ export default function CandidateDashboard({
         open={verifyRound !== null}
         roundLabel={verifyRound === 1 ? 'Virtual Round 1' : 'Virtual Round 2'}
         candidateName={application.name}
+        zoomLink={verificationLink}
         onVerified={handleVerified}
         onClose={handleCloseVerification}
       />

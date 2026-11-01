@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Camera, CheckCircle2, Loader2, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Camera, CheckCircle2, Loader2, RefreshCw, ShieldCheck, Video, X } from 'lucide-react'
 import {
   captureVideoFrame,
   detectPeople,
@@ -14,13 +14,15 @@ export default function FaceVerification({
   open,
   roundLabel,
   candidateName,
+  zoomLink,
   onVerified,
   onClose,
 }: {
   open: boolean
   roundLabel: string
   candidateName: string
-  onVerified: (snapshot: string | null) => void
+  zoomLink: string
+  onVerified: (snapshot: string | null, zoomOpened: boolean) => void
   onClose: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -38,6 +40,7 @@ export default function FaceVerification({
   const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [attempt, setAttempt] = useState(0)
   const [snapshot, setSnapshot] = useState<string | null>(null)
+  const [autoOpened, setAutoOpened] = useState<boolean | null>(null)
 
   const stopCamera = useCallback(() => {
     stoppedRef.current = true
@@ -56,8 +59,23 @@ export default function FaceVerification({
     setSnapshot(frame)
     setPhase('verified')
     setMessage('Face verified. Opening your Zoom interview…')
-    closeTimerRef.current = window.setTimeout(() => onVerified(frame), 1200)
-  }, [onVerified])
+    closeTimerRef.current = window.setTimeout(() => {
+      // Open the real Zoom URL only after the YOLO check passes. Never open an
+      // about:blank window up front: if the browser blocks this tab, the
+      // candidate gets a visible "Open Zoom" button instead.
+      let opened = false
+      if (zoomLink) {
+        try {
+          opened = Boolean(window.open(zoomLink, '_blank'))
+        } catch {
+          opened = false
+        }
+      }
+      setAutoOpened(opened)
+      setMessage(opened ? 'Face verified. Opening your Zoom interview…' : 'Face verified. Click below to open your Zoom interview.')
+      onVerified(frame, opened)
+    }, 1200)
+  }, [onVerified, zoomLink])
 
   // Start the camera and load the person detector whenever the modal opens.
   useEffect(() => {
@@ -74,6 +92,11 @@ export default function FaceVerification({
     let cancelled = false
 
     const start = async () => {
+      if (!window.isSecureContext) {
+        setPhase('error')
+        setMessage('The camera needs a secure (https) page. Open the site over https and try again.')
+        return
+      }
       if (!navigator.mediaDevices?.getUserMedia) {
         setPhase('error')
         setMessage('This browser cannot access the camera. Use Chrome or Edge and allow camera access.')
@@ -96,9 +119,20 @@ export default function FaceVerification({
         }
         setPhase('scanning')
         setMessage('Look at the camera. Exactly one person must be visible.')
-      } catch {
+      } catch (error) {
+        const name = error instanceof DOMException ? error.name : ''
         setPhase('error')
-        setMessage('Camera access was blocked. Allow camera access, then try again.')
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+          setMessage('Camera access was blocked. Click the camera icon in the address bar, choose Allow, then press Try again.')
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+          setMessage('No camera was found. Connect a camera, then press Try again.')
+        } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+          setMessage('The camera is being used by another app. Close that app, then press Try again.')
+        } else if (name === 'OverconstrainedError') {
+          setMessage('This camera does not support the requested video size. Press Try again.')
+        } else {
+          setMessage('The camera could not start. Check the connection and permissions, then press Try again.')
+        }
       }
     }
 
@@ -170,6 +204,7 @@ export default function FaceVerification({
     setPeople(0)
     setModelStatus('loading')
     setSnapshot(null)
+    setAutoOpened(null)
     setAttempt((value) => value + 1)
   }
 
@@ -224,7 +259,21 @@ export default function FaceVerification({
                 ) : null}
                 <CheckCircle2 className="relative h-12 w-12 text-emerald-400" />
                 <p className="relative font-mono2 text-xs uppercase tracking-[0.2em] text-emerald-300">Face verified</p>
-                <p className="relative text-sm text-white/75">Opening {roundLabel} Zoom…</p>
+                <p className="relative text-sm text-white/75">
+                  {autoOpened === false
+                    ? 'Your browser blocked the automatic tab. Click below to open Zoom.'
+                    : `Opening ${roundLabel} Zoom…`}
+                </p>
+                {zoomLink && (
+                  <a
+                    href={zoomLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="relative inline-flex items-center gap-2 bg-zara px-4 py-2 font-mono2 text-[10px] uppercase tracking-[0.18em] text-white hover:bg-white hover:text-ink"
+                  >
+                    <Video className="h-3.5 w-3.5" /> Open {roundLabel} on Zoom
+                  </a>
+                )}
               </div>
             )}
             {phase === 'scanning' && (

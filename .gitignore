@@ -38,6 +38,7 @@ Candidate Applications/Candidates/*
 !Candidate Applications/Candidates/.gitkeep
 Candidate Applications/Uploads/*
 !Candidate Applications/Uploads/.gitkeep
+Candidate Applications/activity.txt
 
 # Human_Detection (YOLO) generated artifacts
 Human_Detection/yolov8n.pt

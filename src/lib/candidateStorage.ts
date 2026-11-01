@@ -237,12 +237,17 @@ export async function writeCandidateRecord(application: Application): Promise<bo
       `Virtual Round 2: 12:40 PM - 1:10 PM IST`,
       `Round 2 Zoom: ${application.round2.zoomLink}`,
       `Round 2 status: ${application.round2.state}`,
+      `Round 2 selection: ${application.round2Decision}`,
       `Boss Round requested: ${application.bossRequestedAt || 'not yet'}`,
       `Boss Round completed: ${application.bossCompletedAt || 'not yet'}`,
       `Hiring status: ${application.status}`,
+      `Reapply after: ${application.reapplyAfter || 'not applicable'}`,
       '',
-      'Activity:',
+      'Process updates:',
       ...(application.events || []).map((event) => `[${event.at}] ${event.event}${event.detail ? ` - ${event.detail}` : ''}`),
+      '',
+      'Candidate activity (clicks and page views):',
+      ...(application.activity || []).map((event) => `[${event.at}] ${event.event}${event.detail ? ` - ${event.detail}` : ''}`),
     ].join('\n') + '\n'
 
     const textHandle = await candidates.getFileHandle(`${application.id}.txt`, { create: true })
@@ -257,7 +262,7 @@ export async function writeCandidateRecord(application: Application): Promise<bo
     } catch {
       existing = ''
     }
-    const line = `[${new Date().toISOString()}] ${application.id} | ${application.name} | ${application.email} | ${application.role} | ${application.status} | round1=${application.round1.state} | round2=${application.round2.state}\n`
+    const line = `[${new Date().toISOString()}] ${application.id} | ${application.name} | ${application.email} | ${application.role} | ${application.status} | round1=${application.round1.state} | round2=${application.round2.state} | round2selection=${application.round2Decision} | reapplyAfter=${application.reapplyAfter || '-'}\n`
     const activityStream = await activityHandle.createWritable()
     await activityStream.write(existing + line)
     await activityStream.close()

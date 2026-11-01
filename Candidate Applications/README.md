@@ -4,7 +4,7 @@ This folder is written automatically by the ZARA AI Interview site when the proj
 
 ```
 Candidates/
-  candidate-000001.txt   # candidate details, interview schedule, Zoom links, status and activity
+  candidate-000001.txt   # details, schedule, Zoom links, round status, process updates and candidate activity
   candidate-000002.txt
 Uploads/
   candidate-000001.jpg   # face photo for the matching candidate

@@ -34,11 +34,23 @@ const faqs: Array<[string, string]> = [
   ],
   [
     'How do I join a virtual round?',
-    'Click the Zoom link button for the round. Allow camera access, stay alone in frame until the YOLO check passes, and the interview opens automatically. Repeat the same steps for Round 2.',
+    'Click "Verify face & join Round" for the round. Allow camera access, stay alone in frame until the YOLO check passes, and the Zoom interview opens in a new tab. If your browser blocks the tab, an "Open on Zoom" button appears. Nothing opens before the camera check passes.',
+  ],
+  [
+    'Who confirms that a round is completed?',
+    'Only the hiring team. The candidate joins the Zoom round and completes face verification; the hiring team then marks the round completed or not completed in the private review portal. The candidate screen updates automatically after each confirmed change.',
   ],
   [
     'When does the Boss Round appear?',
-    'The Boss Round card is hidden until both Virtual Round 1 and Virtual Round 2 are completed. It is then conducted in person at the Boss location only.',
+    'The Boss Round card is hidden until the hiring team confirms both Virtual Round 1 and Virtual Round 2 as completed. It is then conducted in person at the Boss location only.',
+  ],
+  [
+    'When does Round 2 unlock?',
+    'Round 2 Zoom access is granted automatically as soon as the hiring team confirms that you passed Round 1. There is no separate selection step for you to click.',
+  ],
+  [
+    'What happens if I am not selected?',
+    'The hiring team uses Selected or Rejected to confirm every outcome. If you are rejected, you can reattend the same interview after a 2-month waiting period. Use that time to upskill the skills required to crack the interview, then reapply from your candidate dashboard.',
   ],
   [
     'How do I request the Boss Round?',
@@ -81,12 +93,12 @@ const steps = [
   {
     icon: ShieldCheck,
     title: '4. Verify your face',
-    body: 'Before each Zoom round, the YOLO check confirms exactly one candidate is in frame, then redirects you.',
+    body: 'Before each Zoom round, the YOLO check confirms exactly one candidate is in frame, then opens the real Zoom link.',
   },
   {
     icon: CheckCircle2,
-    title: '5. Boss Round & hire',
-    body: 'After both virtual rounds, request the in-person Boss Round on WhatsApp. HIRED EMPLOYEE unlocks only after approval.',
+    title: '5. Hiring team confirms',
+    body: 'The hiring team marks each round completed or not completed. Passing Round 1 unlocks Round 2 automatically. The Boss Round follows, and HIRED EMPLOYEE unlocks only after approval.',
   },
 ]
 
@@ -232,7 +244,8 @@ export default function Home() {
               <h3 className="mt-2 text-xl font-black">Round 2</h3>
               <p className="mt-2 text-sm text-ink/60">12:40 PM – 1:10 PM IST</p>
               <p className="mt-3 text-sm leading-relaxed text-ink/55">
-                Unlocks after Round 1 is completed. The same YOLO face verification runs before the Round 2 Zoom link.
+                Unlocks automatically when the hiring team confirms Round 1 as passed. The same YOLO face verification
+                runs before the Round 2 Zoom link.
               </p>
             </div>
             <div className="border border-zara/30 bg-red-50/40 p-6">
@@ -240,8 +253,8 @@ export default function Home() {
               <h3 className="mt-2 text-xl font-black">Boss Round</h3>
               <p className="mt-2 text-sm text-ink/60">After both virtual rounds</p>
               <p className="mt-3 text-sm leading-relaxed text-ink/55">
-                The Boss Round card stays hidden until Round 1 and Round 2 are complete. Request it on WhatsApp, then
-                meet the Boss in person.
+                The Boss Round card stays hidden until the hiring team confirms Round 1 and Round 2 as complete. Request
+                it on WhatsApp, then meet the Boss in person.
               </p>
             </div>
           </div>

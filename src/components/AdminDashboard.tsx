@@ -1,20 +1,33 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  CalendarClock,
   CheckCircle2,
   FolderCheck,
   FolderX,
+  Link2,
   RefreshCw,
-  ShieldCheck,
+  Save,
+  Undo2,
+  UserCheck,
+  UserX,
   XCircle,
 } from 'lucide-react'
 import {
+  addMonths,
+  canReapply,
   formatIST,
+  formatISTTime,
+  formatInterviewDate,
   readAllApplications,
+  reapplyDateLabel,
+  round2DecisionLabel,
   statusLabel,
   updateApplicationById,
   withEvent,
+  type AppStatus,
   type Application,
+  type RoundState,
 } from '../lib/applications'
 import {
   connectProjectDirectory,
@@ -24,20 +37,161 @@ import {
   restoreCandidateDirectory,
   writeCandidateRecord,
 } from '../lib/candidateStorage'
+import { readSiteActivity, type SiteActivity } from '../lib/activity'
 
 const adminCode = import.meta.env.VITE_ADMIN_CODE || 'ZARA-BOSS-2026'
 const unlockKey = 'zara_admin_unlocked'
+
+function ZoomLinkEditor({
+  round,
+  link,
+  disabled,
+  onSave,
+}: {
+  round: 1 | 2
+  link: string
+  disabled: boolean
+  onSave: (link: string) => void
+}) {
+  const [value, setValue] = useState(link)
+  const [error, setError] = useState('')
+
+  // The parent passes a `key` based on the saved link, so this editor remounts
+  // with fresh state whenever another tab saves a new link.
+  const trimmed = value.trim()
+  const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  const valid = /^https?:\/\/[^\s/]+\.[^\s]+/i.test(normalized)
+  const dirty = trimmed !== link
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (!valid) {
+          setError('Enter a full Zoom URL, for example https://zoom.us/j/1234567890?pwd=abcd1234')
+          return
+        }
+        setError('')
+        onSave(normalized)
+      }}
+      className="mt-3"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink/70">
+          <Link2 className="h-3.5 w-3.5 text-zara" /> Round {round} Zoom link
+        </label>
+        <div className="flex items-center gap-2">
+          {/^https?:\/\//i.test(link) && (
+            <a href={link} target="_blank" rel="noreferrer" className="text-xs underline hover:text-zara">
+              Open
+            </a>
+          )}
+          <button
+            type="submit"
+            disabled={disabled || !dirty}
+            className="inline-flex items-center gap-1 border border-ink/20 bg-white px-2.5 py-1.5 text-xs hover:border-zara disabled:opacity-40"
+          >
+            <Save className="h-3.5 w-3.5" /> Save link
+          </button>
+        </div>
+      </div>
+      <input
+        type="url"
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value)
+          if (error) setError('')
+        }}
+        placeholder="https://zoom.us/j/1234567890?pwd=abcd1234"
+        className="mt-1.5 block w-full border border-ink/20 bg-white px-2.5 py-1.5 font-mono2 text-xs"
+      />
+      {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+      {!error && dirty && valid && <p className="mt-1 text-xs text-amber-700">Unsaved change — press Save link.</p>}
+    </form>
+  )
+}
+
+function ProcessTracker({ application }: { application: Application }) {
+  const steps = [
+    {
+      label: 'Application',
+      value: 'Submitted',
+      done: true,
+      bad: false,
+    },
+    {
+      label: 'Round 1',
+      value: application.round1.state === 'completed'
+        ? 'Completed'
+        : application.round1.state === 'verified'
+          ? 'Face verified · not completed'
+          : 'Not completed',
+      done: application.round1.state === 'completed',
+      bad: false,
+    },
+    {
+      label: 'Round 2 access',
+      value: application.round2Decision === 'rejected'
+        ? 'Closed after Round 1'
+        : application.round1.state === 'completed'
+          ? 'Unlocked automatically'
+          : 'Locked until Round 1 passes',
+      done: application.round1.state === 'completed' && application.round2Decision !== 'rejected',
+      bad: application.round2Decision === 'rejected',
+    },
+    {
+      label: 'Round 2',
+      value: application.round2.state === 'completed'
+        ? 'Completed'
+        : application.round2.state === 'verified'
+          ? 'Face verified · not completed'
+          : 'Not completed',
+      done: application.round2.state === 'completed',
+      bad: false,
+    },
+    {
+      label: 'Boss Round',
+      value: application.bossCompletedAt ? 'Completed' : application.bossRequestedAt ? 'Requested' : 'Not started',
+      done: Boolean(application.bossCompletedAt),
+      bad: false,
+    },
+    {
+      label: 'Outcome',
+      value: statusLabel(application.status),
+      done: application.status !== 'pending',
+      bad: application.status === 'rejected',
+    },
+  ]
+
+  return (
+    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      {steps.map((step) => (
+        <div
+          key={step.label}
+          className={`border p-2 ${step.bad ? 'border-red-200 bg-red-50 text-red-800' : step.done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-ink/15 bg-paper text-ink/65'}`}
+        >
+          <p className="font-mono2 text-[9px] uppercase tracking-[0.14em] text-ink/40">{step.label}</p>
+          <p className="mt-1 text-xs font-semibold">{step.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function AdminDashboard() {
   const [code, setCode] = useState('')
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(unlockKey) === '1')
   const [applications, setApplications] = useState<Application[]>([])
   const [photos, setPhotos] = useState<Record<string, string>>({})
+  const [siteActivity, setSiteActivity] = useState<SiteActivity[]>(() => readSiteActivity())
   const [folder, setFolder] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const refresh = () => setApplications(readAllApplications())
+  const refresh = () => {
+    setApplications(readAllApplications())
+    setSiteActivity(readSiteActivity())
+  }
 
   useEffect(() => {
     void restoreCandidateDirectory().then(async () => {
@@ -46,9 +200,11 @@ export default function AdminDashboard() {
     })
     const handler = () => refresh()
     window.addEventListener('zara:applications-updated', handler)
+    window.addEventListener('zara:site-activity-updated', handler)
     window.addEventListener('storage', handler)
     return () => {
       window.removeEventListener('zara:applications-updated', handler)
+      window.removeEventListener('zara:site-activity-updated', handler)
       window.removeEventListener('storage', handler)
     }
   }, [])
@@ -105,19 +261,101 @@ export default function AdminDashboard() {
     setBusy(false)
   }
 
-  const markRound = (application: Application, round: 1 | 2) => {
+  const setRoundLink = (application: Application, round: 1 | 2, link: string) => {
     const key = round === 1 ? 'round1' : 'round2'
-    applyUpdate(application.id, (current) => withEvent(
-      {
-        ...current,
-        [key]: {
-          ...current[key],
-          state: 'completed',
-          completedAt: new Date().toISOString(),
+    applyUpdate(application.id, (current) => {
+      if (current[key].zoomLink === link) return current
+      return withEvent(
+        { ...current, [key]: { ...current[key], zoomLink: link } },
+        `Round ${round} Zoom link updated by hiring review`,
+        link,
+      )
+    })
+  }
+
+  const setRoundCompleted = (application: Application, round: 1 | 2, completed: boolean) => {
+    const key = round === 1 ? 'round1' : 'round2'
+    applyUpdate(application.id, (current) => {
+      const roundData = current[key]
+      const nextState: RoundState = completed
+        ? 'completed'
+        : roundData.verifiedAt
+          ? 'verified'
+          : 'scheduled'
+      const nextRound = { ...roundData, state: nextState }
+      if (completed) nextRound.completedAt = new Date().toISOString()
+      else delete nextRound.completedAt
+
+      // Passing Round 1 grants Round 2 access automatically — there is no
+      // separate "select for Round 2" step. Un-completing Round 1 locks it
+      // again unless Round 2 was already completed.
+      const next: Application = { ...current, [key]: nextRound }
+      if (round === 1) {
+        if (completed) {
+          next.round2Decision = 'selected'
+          if (next.status === 'rejected' && !next.bossCompletedAt) {
+            next.status = 'pending'
+            next.reapplyAfter = undefined
+          }
+        } else if (next.round2.state !== 'completed') {
+          next.round2Decision = 'pending'
+        }
+      }
+
+      return withEvent(
+        next,
+        completed
+          ? `Round ${round} marked complete by hiring review`
+          : `Round ${round} marked not complete by hiring review`,
+        completed
+          ? round === 1
+            ? 'Round 1 passed — Round 2 Zoom access unlocked automatically.'
+            : 'Interview confirmed completed by the hiring team.'
+          : 'Interview reopened; completion removed by the hiring team.',
+      )
+    })
+  }
+
+  /**
+   * The hiring team's only decision is Selected or Rejected. The stage decides
+   * the effect: before Round 2 it grants Round 2 access, after the Boss Round it
+   * hires the candidate, and a rejection starts the 2-month reapply wait.
+   */
+  const decide = (application: Application, decision: 'selected' | 'rejected') => {
+    applyUpdate(application.id, (current) => {
+      const now = new Date().toISOString()
+      const round2Done = current.round2.state === 'completed'
+      const bossDone = Boolean(current.bossCompletedAt)
+
+      if (decision === 'selected') {
+        if (bossDone) {
+          return withEvent(
+            { ...current, status: 'approved', approvedAt: now, round2Decision: 'selected', reapplyAfter: undefined },
+            'Candidate selected by the Boss',
+            'HIRED EMPLOYEE access unlocked.',
+          )
+        }
+        return withEvent(
+          { ...current, status: 'pending', round2Decision: 'selected', reapplyAfter: undefined },
+          round2Done ? 'Candidate selected by hiring review' : 'Candidate selected for Round 2 by hiring review',
+          round2Done
+            ? 'Waiting for the in-person Boss Round.'
+            : 'Round 2 Zoom access unlocked automatically.',
+        )
+      }
+
+      const reapplyAfter = addMonths(now, 2)
+      return withEvent(
+        {
+          ...current,
+          status: 'rejected' as AppStatus,
+          round2Decision: round2Done ? current.round2Decision : 'rejected',
+          reapplyAfter,
         },
-      },
-      `Round ${round} marked complete by hiring review`,
-    ))
+        round2Done ? 'Candidate rejected by hiring review' : 'Candidate rejected for Round 2 by hiring review',
+        `The candidate can reapply after ${formatIST(reapplyAfter)}.`,
+      )
+    })
   }
 
   const requestBoss = (application: Application) => {
@@ -127,29 +365,12 @@ export default function AdminDashboard() {
     ))
   }
 
-  const completeBoss = (application: Application) => {
+  const setBossCompleted = (application: Application, completed: boolean) => {
     applyUpdate(application.id, (current) => withEvent(
-      { ...current, bossCompletedAt: new Date().toISOString() },
-      'Boss Round marked complete by hiring review',
-    ))
-  }
-
-  const approve = (application: Application) => {
-    if (!(application.round1.state === 'completed' && application.round2.state === 'completed' && application.bossCompletedAt)) {
-      setError('Both virtual rounds and the Boss Round must be completed before approval.')
-      return
-    }
-    applyUpdate(application.id, (current) => withEvent(
-      { ...current, status: 'approved', approvedAt: new Date().toISOString() },
-      'Candidate approved by the Boss',
-      'HIRED EMPLOYEE access unlocked.',
-    ))
-  }
-
-  const reject = (application: Application) => {
-    applyUpdate(application.id, (current) => withEvent(
-      { ...current, status: 'rejected' },
-      'Candidate not selected after review',
+      { ...current, bossCompletedAt: completed ? new Date().toISOString() : undefined },
+      completed
+        ? 'Boss Round marked complete by hiring review'
+        : 'Boss Round marked not complete by hiring review',
     ))
   }
 
@@ -183,9 +404,10 @@ export default function AdminDashboard() {
       <main className="mx-auto max-w-6xl px-5 py-10">
         <h1 className="text-3xl font-black">Application review</h1>
         <p className="mt-2 max-w-3xl text-sm text-ink/60">
-          Boss-only review for the applications saved in this browser. Approve a candidate only after both virtual
-          rounds and the in-person Boss Round are complete. The HIRED EMPLOYEE button appears on the candidate screen
-          only after approval.
+          Boss-only review for the applications saved in this browser. The hiring team owns the interview process:
+          update the Zoom links, mark each round completed or not completed, and confirm every candidate with the
+          Selected or Rejected buttons. Round 2 unlocks automatically when Round 1 is passed, and the candidate screen
+          updates automatically after every confirmed change.
         </p>
 
         {!unlocked && (
@@ -241,6 +463,26 @@ export default function AdminDashboard() {
               </div>
             </section>
 
+            <details className="mt-4 border border-ink/15 bg-white p-5 text-sm" open>
+              <summary className="cursor-pointer font-semibold">
+                Site activity · {siteActivity.length} tracked events
+              </summary>
+              <p className="mt-2 text-xs leading-relaxed text-ink/50">
+                Every candidate click and page view is recorded automatically in this browser and in the connected
+                project folder. Newest events appear first.
+              </p>
+              <ul className="mt-3 max-h-64 space-y-1 overflow-auto text-xs text-ink/60">
+                {siteActivity.length === 0 && <li>No activity recorded yet.</li>}
+                {[...siteActivity].reverse().slice(0, 100).map((event, index) => (
+                  <li key={`${event.at}-${index}`} className="border-l-2 border-ink/10 pl-2">
+                    <span className="font-mono2 text-[10px] text-ink/40">{formatIST(event.at)}</span> · {event.event}
+                    {event.detail ? <span className="text-ink/45"> — {event.detail}</span> : null}
+                    {event.email ? <span className="text-ink/40"> · {event.email}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </details>
+
             {applications.length === 0 && (
               <p className="mt-6 border border-ink/15 bg-white p-6 text-sm text-ink/60">
                 No applications are saved in this browser yet. Candidate submissions appear here automatically.
@@ -248,75 +490,193 @@ export default function AdminDashboard() {
             )}
 
             <div className="mt-6 space-y-5">
-              {applications.map((application) => (
-                <article key={application.id} className="grid gap-5 border border-ink/15 bg-white p-5 md:grid-cols-[180px_1fr]">
-                  <div>
-                    {photos[application.id] ? (
-                      <img src={photos[application.id]} alt={`Face photo for ${application.name}`} className="aspect-square w-full border border-ink/10 object-cover" />
-                    ) : (
-                      <div className="flex aspect-square w-full items-center justify-center border border-ink/10 bg-gray-100 text-sm text-ink/45">No photo</div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-mono2 text-xs text-zara">{application.id} · {statusLabel(application.status).toUpperCase()}</p>
-                        <h2 className="mt-1 text-xl font-black">{application.name}</h2>
-                        <p className="text-sm text-ink/65">{application.role}</p>
+              {applications.map((application) => {
+                const round1Done = application.round1.state === 'completed'
+                const round2Done = application.round2.state === 'completed'
+                const round2Unlocked = round1Done && application.round2Decision !== 'rejected'
+                const bothRoundsDone = round1Done && round2Done && round2Unlocked
+                const rejected = application.status === 'rejected'
+                const canApplyAgain = canReapply(application)
+                return (
+                  <article key={application.id} className="grid gap-5 border border-ink/15 bg-white p-5 md:grid-cols-[180px_1fr]">
+                    <div>
+                      {photos[application.id] ? (
+                        <img src={photos[application.id]} alt={`Face photo for ${application.name}`} className="aspect-square w-full border border-ink/10 object-cover" />
+                      ) : (
+                        <div className="flex aspect-square w-full items-center justify-center border border-ink/10 bg-gray-100 text-sm text-ink/45">No photo</div>
+                      )}
+                      <p className="mt-2 font-mono2 text-[10px] uppercase tracking-[0.14em] text-ink/40">{application.id}</p>
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono2 text-xs text-zara">{application.id} · {statusLabel(application.status).toUpperCase()}</p>
+                          <h2 className="mt-1 text-xl font-black">{application.name}</h2>
+                          <p className="text-sm text-ink/65">{application.role}</p>
+                        </div>
+                        <p className="text-xs text-ink/50">Applied {formatIST(application.createdAt)}</p>
                       </div>
-                      <p className="text-xs text-ink/50">{formatIST(application.createdAt)}</p>
+
+                      <p className="mt-3 text-sm">{application.email} · {application.phone}</p>
+                      <p className="mt-1 text-sm">{application.experience} · {application.location}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-ink/70">{application.about}</p>
+
+                      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink/55">
+                        <CalendarClock className="h-3.5 w-3.5 text-zara" />
+                        <span>{formatInterviewDate(application.interviewDate)}</span>
+                        <span>· Round 1 {formatISTTime(application.round1.scheduledAt)}–{formatISTTime(application.round1.endsAt)} IST</span>
+                        <span>· Round 2 {formatISTTime(application.round2.scheduledAt)}–{formatISTTime(application.round2.endsAt)} IST</span>
+                      </p>
+
+                      <ProcessTracker application={application} />
+
+                      <div className="mt-4 border border-ink/10 bg-paper p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">Round 1 · {application.round1.state}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {application.round1.state !== 'completed' ? (
+                              <button disabled={busy} onClick={() => setRoundCompleted(application, 1, true)} className="inline-flex items-center gap-1 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-emerald-600 hover:text-emerald-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Mark Round 1 completed
+                              </button>
+                            ) : (
+                              <button disabled={busy} onClick={() => setRoundCompleted(application, 1, false)} className="inline-flex items-center gap-1 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-amber-600 hover:text-amber-700">
+                                <Undo2 className="h-3.5 w-3.5" /> Mark Round 1 not completed
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <ZoomLinkEditor key={application.round1.zoomLink} round={1} link={application.round1.zoomLink} disabled={busy} onSave={(link) => setRoundLink(application, 1, link)} />
+                      </div>
+
+                      <div className="mt-3 border border-ink/10 bg-paper p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">
+                            Round 2 · {round2DecisionLabel(application.round2Decision)} · {application.round2.state}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {round2Unlocked && application.round2.state !== 'completed' && (
+                              <button disabled={busy} onClick={() => setRoundCompleted(application, 2, true)} className="inline-flex items-center gap-1 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-emerald-600 hover:text-emerald-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Mark Round 2 completed
+                              </button>
+                            )}
+                            {application.round2.state === 'completed' && (
+                              <button disabled={busy} onClick={() => setRoundCompleted(application, 2, false)} className="inline-flex items-center gap-1 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-amber-600 hover:text-amber-700">
+                                <Undo2 className="h-3.5 w-3.5" /> Mark Round 2 not completed
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {!round1Done && (
+                          <p className="mt-2 text-xs text-ink/45">
+                            Round 2 access is granted automatically when you mark Round 1 completed (passed).
+                          </p>
+                        )}
+                        {round1Done && !round2Unlocked && (
+                          <p className="mt-2 text-xs text-red-700">
+                            Round 2 is closed for this candidate after a rejection.
+                          </p>
+                        )}
+                        {round1Done && round2Unlocked && (
+                          <p className="mt-2 text-xs text-emerald-700">
+                            Round 1 is passed. The candidate already has Round 2 Zoom access.
+                          </p>
+                        )}
+                        <ZoomLinkEditor key={application.round2.zoomLink} round={2} link={application.round2.zoomLink} disabled={busy} onSave={(link) => setRoundLink(application, 2, link)} />
+                      </div>
+
+                      <div className="mt-3 border border-ink/10 bg-paper p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">
+                            Boss Round · {application.bossCompletedAt ? 'completed' : application.bossRequestedAt ? 'requested' : 'not started'}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {bothRoundsDone && !application.bossRequestedAt && (
+                              <button disabled={busy} onClick={() => requestBoss(application)} className="bg-ink px-3 py-2 text-xs text-white hover:bg-zara">
+                                Record Boss Round request
+                              </button>
+                            )}
+                            {application.bossRequestedAt && !application.bossCompletedAt && (
+                              <button disabled={busy} onClick={() => setBossCompleted(application, true)} className="inline-flex items-center gap-1 border border-ink/25 bg-white px-3 py-2 text-xs hover:border-emerald-600 hover:text-emerald-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Mark Boss Round completed
+                              </button>
+                            )}
+                            {application.bossCompletedAt && application.status !== 'approved' && (
+                              <button disabled={busy} onClick={() => setBossCompleted(application, false)} className="inline-flex items-center gap-1 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-amber-600 hover:text-amber-700">
+                                <Undo2 className="h-3.5 w-3.5" /> Mark Boss Round not completed
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 border border-ink/15 bg-white p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">
+                            Hiring decision · {statusLabel(application.status)}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {!rejected && (
+                              <button disabled={busy} onClick={() => decide(application, 'selected')} className="inline-flex items-center gap-1 bg-emerald-700 px-3 py-2 text-xs text-white hover:bg-emerald-800">
+                                <UserCheck className="h-3.5 w-3.5" /> Selected
+                              </button>
+                            )}
+                            {!rejected && application.status !== 'approved' && (
+                              <button disabled={busy} onClick={() => decide(application, 'rejected')} className="inline-flex items-center gap-1 border border-red-300 bg-white px-3 py-2 text-xs text-red-700 hover:bg-red-50">
+                                <UserX className="h-3.5 w-3.5" /> Rejected
+                              </button>
+                            )}
+                            {application.status === 'approved' && (
+                              <span className="inline-flex items-center gap-1 border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> HIRED EMPLOYEE unlocked
+                              </span>
+                            )}
+                            {rejected && (
+                              <span className="inline-flex items-center gap-1 border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                <XCircle className="h-3.5 w-3.5" /> Application closed
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-ink/50">
+                          Selected before Round 2 grants Round 2 access; selected after the Boss Round unlocks HIRED
+                          EMPLOYEE. Rejected starts the candidate's 2-month upskilling and reapply period.
+                        </p>
+                        {rejected && application.reapplyAfter && (
+                          <p className="mt-2 text-xs text-red-700">
+                            Reapply eligible from <b>{reapplyDateLabel(application)}</b>
+                            {canApplyAgain ? ' · the candidate can reapply now.' : ' · the candidate cannot reapply yet.'}
+                          </p>
+                        )}
+                      </div>
+
+                      <details className="mt-3 text-xs text-ink/50">
+                        <summary className="cursor-pointer">Process updates · {application.events.length} entries</summary>
+                        <ul className="mt-2 space-y-1">
+                          {application.events.map((event, index) => (
+                            <li key={`${event.at}-${index}`} className="border-l-2 border-ink/10 pl-2">
+                              <span className="font-mono2 text-[10px] text-ink/40">{formatIST(event.at)}</span> · {event.event}
+                              {event.detail ? <span className="text-ink/45"> — {event.detail}</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+
+                      <details className="mt-2 text-xs text-ink/50">
+                        <summary className="cursor-pointer">Candidate activity · {application.activity.length} entries</summary>
+                        <ul className="mt-2 space-y-1">
+                          {application.activity.length === 0 && <li>No activity recorded yet.</li>}
+                          {application.activity.map((event, index) => (
+                            <li key={`${event.at}-${index}`} className="border-l-2 border-ink/10 pl-2">
+                              <span className="font-mono2 text-[10px] text-ink/40">{formatIST(event.at)}</span> · {event.event}
+                              {event.detail ? <span className="text-ink/45"> — {event.detail}</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
                     </div>
-                    <p className="mt-3 text-sm">{application.email} · {application.phone}</p>
-                    <p className="mt-1 text-sm">{application.experience} · {application.location}</p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-ink/70">{application.about}</p>
-                    <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
-                      <span className={`border px-2 py-1 ${application.round1.state === 'completed' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-ink/15 bg-paper'}`}>Round 1: {application.round1.state}</span>
-                      <span className={`border px-2 py-1 ${application.round2.state === 'completed' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-ink/15 bg-paper'}`}>Round 2: {application.round2.state}</span>
-                      <span className={`border px-2 py-1 ${application.bossCompletedAt ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-ink/15 bg-paper'}`}>Boss: {application.bossCompletedAt ? 'completed' : application.bossRequestedAt ? 'requested' : 'not yet'}</span>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {application.round1.state !== 'completed' && (
-                        <button disabled={busy} onClick={() => markRound(application, 1)} className="border border-ink/20 px-3 py-2 text-xs hover:border-zara">
-                          Mark Round 1 complete
-                        </button>
-                      )}
-                      {application.round1.state === 'completed' && application.round2.state !== 'completed' && (
-                        <button disabled={busy} onClick={() => markRound(application, 2)} className="border border-ink/20 px-3 py-2 text-xs hover:border-zara">
-                          Mark Round 2 complete
-                        </button>
-                      )}
-                      {application.round1.state === 'completed' && application.round2.state === 'completed' && !application.bossRequestedAt && (
-                        <button disabled={busy} onClick={() => requestBoss(application)} className="bg-ink px-3 py-2 text-xs text-white hover:bg-zara">
-                          Record Boss Round request
-                        </button>
-                      )}
-                      {application.bossRequestedAt && !application.bossCompletedAt && (
-                        <button disabled={busy} onClick={() => completeBoss(application)} className="border border-ink/25 px-3 py-2 text-xs hover:border-zara">
-                          Mark Boss Round complete
-                        </button>
-                      )}
-                      {application.bossCompletedAt && application.status !== 'approved' && application.status !== 'rejected' && (
-                        <button disabled={busy} onClick={() => approve(application)} className="inline-flex items-center gap-1 bg-emerald-700 px-3 py-2 text-xs text-white hover:bg-emerald-800">
-                          <ShieldCheck className="h-3.5 w-3.5" /> Approve & unlock HIRED EMPLOYEE
-                        </button>
-                      )}
-                      {application.status === 'pending' && (
-                        <button disabled={busy} onClick={() => reject(application)} className="inline-flex items-center gap-1 border border-red-300 px-3 py-2 text-xs text-red-700 hover:bg-red-50">
-                          <XCircle className="h-3.5 w-3.5" /> Not selected
-                        </button>
-                      )}
-                      {application.status === 'approved' && (
-                        <span className="inline-flex items-center gap-1 border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> HIRED EMPLOYEE unlocked
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-3 text-[11px] text-ink/40">
-                      Round 1 Zoom: {application.round1.zoomLink} · Round 2 Zoom: {application.round2.zoomLink}
-                    </p>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                )
+              })}
             </div>
           </>
         )}

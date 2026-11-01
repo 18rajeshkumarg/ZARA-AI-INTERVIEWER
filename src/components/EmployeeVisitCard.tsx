@@ -40,6 +40,10 @@ export default function EmployeeVisitCard({
             Indica Software · Onboarding visit
           </p>
           <h3 className="mt-1 text-lg font-bold text-ink">Original documents visit</h3>
+          <p className="mt-1 text-sm font-semibold text-ink/75">
+            {application.name} · {application.role}
+          </p>
+          <p className="mt-0.5 font-mono2 text-[10px] text-ink/50">{application.id}</p>
           <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-ink/75">
             <CalendarDays className="h-4 w-4 text-sky-700" />
             {formatIST(window.start)} – {formatIST(window.end)} IST

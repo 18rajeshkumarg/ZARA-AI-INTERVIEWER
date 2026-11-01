@@ -240,6 +240,7 @@ export async function writeCandidateRecord(application: Application): Promise<bo
       `Round 2 selection: ${application.round2Decision}`,
       `Boss Round requested: ${application.bossRequestedAt || 'not yet'}`,
       `Boss Round completed: ${application.bossCompletedAt || 'not yet'}`,
+      `Selected at: ${application.selectedAt || 'not yet'}`,
       `Hiring status: ${application.status}`,
       `Reapply after: ${application.reapplyAfter || 'not applicable'}`,
       '',
@@ -262,7 +263,7 @@ export async function writeCandidateRecord(application: Application): Promise<bo
     } catch {
       existing = ''
     }
-    const line = `[${new Date().toISOString()}] ${application.id} | ${application.name} | ${application.email} | ${application.role} | ${application.status} | round1=${application.round1.state} | round2=${application.round2.state} | round2selection=${application.round2Decision} | reapplyAfter=${application.reapplyAfter || '-'}\n`
+    const line = `[${new Date().toISOString()}] ${application.id} | ${application.name} | ${application.email} | ${application.role} | ${application.status} | round1=${application.round1.state} | round2=${application.round2.state} | round2selection=${application.round2Decision} | selectedAt=${application.selectedAt || '-'} | reapplyAfter=${application.reapplyAfter || '-'}\n`
     const activityStream = await activityHandle.createWritable()
     await activityStream.write(existing + line)
     await activityStream.close()

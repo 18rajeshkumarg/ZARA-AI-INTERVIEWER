@@ -76,8 +76,10 @@ The review page is local and does not call an API. It is **not linked anywhere o
 - mark **Round 2 completed / not completed**
 - record the **Boss Round** request and completion
 - confirm the outcome with a single **Selected / Rejected** pair:
+  - **Selected** is recorded immediately and shows **Selected** in the decision panel, the process tracker and the candidate screen — it is never a silent click
   - **Selected** before Round 2 grants Round 2 access
   - **Selected** after the Boss Round approves the candidate and unlocks **HIRED EMPLOYEE**
+  - **Undo selection** reverses a selection made before the Boss Round
   - **Rejected** closes the application and starts the candidate's **2-month** upskilling/reapply period
 - review the **process updates** and the automatically tracked **candidate activity** (every click, page view and verification) per candidate, plus the site-wide activity log
 - **Connect folder** so records are mirrored into `Candidate Applications/`

@@ -50,6 +50,12 @@ export type Application = {
   bossRequestedAt?: string
   bossCompletedAt?: string
   approvedAt?: string
+  /**
+   * When the hiring team pressed "Selected". This is a real, visible decision
+   * even before the Boss Round is confirmed, so the admin sees an immediate
+   * result instead of a silent no-op.
+   */
+  selectedAt?: string
   /** A rejected candidate may reattend the same interview after this date. */
   reapplyAfter?: string
   /** Process changes confirmed by the hiring team. */
@@ -143,6 +149,8 @@ function normalizeApplication(raw: unknown): Application | null {
     bossRequestedAt,
     bossCompletedAt: optionalIso(record.bossCompletedAt),
     approvedAt: optionalIso(record.approvedAt),
+    selectedAt: optionalIso(record.selectedAt)
+      || (status === 'approved' ? optionalIso(record.approvedAt) : undefined),
     reapplyAfter,
     events: normalizeEvents(record.events, fallbackEvents),
     activity: normalizeEvents(record.activity, []),
@@ -518,6 +526,18 @@ export function nextCandidateId(existingIds: string[], folderMax = 0): string {
 export function statusLabel(status: AppStatus): string {
   if (status === 'approved') return 'Hired'
   if (status === 'rejected') return 'Not selected'
+  return 'In progress'
+}
+
+/**
+ * What the hiring team decided, including a selection that is still waiting for
+ * the in-person Boss Round. `statusLabel` only knows the stored status, so a
+ * candidate who was selected but not yet hired would look untouched.
+ */
+export function decisionLabel(application: Application): string {
+  if (application.status === 'approved') return 'Hired'
+  if (application.status === 'rejected') return 'Not selected'
+  if (application.selectedAt) return 'Selected'
   return 'In progress'
 }
 

@@ -16,13 +16,13 @@ import {
 import {
   addMonths,
   canReapply,
+  decisionLabel,
   formatIST,
   formatISTTime,
   formatInterviewDate,
   readAllApplications,
   reapplyDateLabel,
   round2DecisionLabel,
-  statusLabel,
   updateApplicationById,
   withEvent,
   type AppStatus,
@@ -135,8 +135,11 @@ function ProcessTracker({ application }: { application: Application }) {
         ? 'Closed after Round 1'
         : application.round1.state === 'completed'
           ? 'Unlocked automatically'
-          : 'Locked until Round 1 passes',
-      done: application.round1.state === 'completed' && application.round2Decision !== 'rejected',
+          : application.selectedAt
+            ? 'Granted by selection'
+            : 'Locked until Round 1 passes',
+      done: application.round2Decision !== 'rejected'
+        && (application.round1.state === 'completed' || Boolean(application.selectedAt)),
       bad: application.round2Decision === 'rejected',
     },
     {
@@ -157,8 +160,8 @@ function ProcessTracker({ application }: { application: Application }) {
     },
     {
       label: 'Outcome',
-      value: statusLabel(application.status),
-      done: application.status !== 'pending',
+      value: decisionLabel(application),
+      done: application.status !== 'pending' || Boolean(application.selectedAt),
       bad: application.status === 'rejected',
     },
   ]
@@ -330,13 +333,27 @@ export default function AdminDashboard() {
       if (decision === 'selected') {
         if (bossDone) {
           return withEvent(
-            { ...current, status: 'approved', approvedAt: now, round2Decision: 'selected', reapplyAfter: undefined },
+            {
+              ...current,
+              status: 'approved',
+              approvedAt: now,
+              selectedAt: current.selectedAt || now,
+              round2Decision: 'selected',
+              reapplyAfter: undefined,
+            },
             'Candidate selected by the Boss',
             'HIRED EMPLOYEE access unlocked.',
           )
         }
         return withEvent(
-          { ...current, status: 'pending', round2Decision: 'selected', reapplyAfter: undefined },
+          {
+            ...current,
+            status: 'pending',
+            selectedAt: now,
+            approvedAt: undefined,
+            round2Decision: 'selected',
+            reapplyAfter: undefined,
+          },
           round2Done ? 'Candidate selected by hiring review' : 'Candidate selected for Round 2 by hiring review',
           round2Done
             ? 'Waiting for the in-person Boss Round.'
@@ -349,6 +366,8 @@ export default function AdminDashboard() {
         {
           ...current,
           status: 'rejected' as AppStatus,
+          selectedAt: undefined,
+          approvedAt: undefined,
           round2Decision: round2Done ? current.round2Decision : 'rejected',
           reapplyAfter,
         },
@@ -356,6 +375,20 @@ export default function AdminDashboard() {
         `The candidate can reapply after ${formatIST(reapplyAfter)}.`,
       )
     })
+  }
+
+  /** Reverses a "Selected" decision so the hiring team can change its mind. */
+  const undoSelection = (application: Application) => {
+    applyUpdate(application.id, (current) => withEvent(
+      {
+        ...current,
+        status: current.status === 'approved' ? 'pending' : current.status,
+        selectedAt: undefined,
+        approvedAt: undefined,
+      },
+      'Selection withdrawn by hiring review',
+      'The candidate is back in review.',
+    ))
   }
 
   const requestBoss = (application: Application) => {
@@ -367,7 +400,13 @@ export default function AdminDashboard() {
 
   const setBossCompleted = (application: Application, completed: boolean) => {
     applyUpdate(application.id, (current) => withEvent(
-      { ...current, bossCompletedAt: completed ? new Date().toISOString() : undefined },
+      {
+        ...current,
+        bossRequestedAt: completed
+          ? current.bossRequestedAt || new Date().toISOString()
+          : current.bossRequestedAt,
+        bossCompletedAt: completed ? new Date().toISOString() : undefined,
+      },
       completed
         ? 'Boss Round marked complete by hiring review'
         : 'Boss Round marked not complete by hiring review',
@@ -493,9 +532,11 @@ export default function AdminDashboard() {
               {applications.map((application) => {
                 const round1Done = application.round1.state === 'completed'
                 const round2Done = application.round2.state === 'completed'
-                const round2Unlocked = round1Done && application.round2Decision !== 'rejected'
+                const selected = Boolean(application.selectedAt)
+                const round2Unlocked = application.round2Decision !== 'rejected' && (round1Done || selected)
                 const bothRoundsDone = round1Done && round2Done && round2Unlocked
                 const rejected = application.status === 'rejected'
+                const approved = application.status === 'approved'
                 const canApplyAgain = canReapply(application)
                 return (
                   <article key={application.id} className="grid gap-5 border border-ink/15 bg-white p-5 md:grid-cols-[180px_1fr]">
@@ -510,7 +551,7 @@ export default function AdminDashboard() {
                     <div>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-mono2 text-xs text-zara">{application.id} · {statusLabel(application.status).toUpperCase()}</p>
+                          <p className="font-mono2 text-xs text-zara">{application.id} · {decisionLabel(application).toUpperCase()}</p>
                           <h2 className="mt-1 text-xl font-black">{application.name}</h2>
                           <p className="text-sm text-ink/65">{application.role}</p>
                         </div>
@@ -566,9 +607,15 @@ export default function AdminDashboard() {
                             )}
                           </div>
                         </div>
-                        {!round1Done && (
+                        {!round1Done && !selected && (
                           <p className="mt-2 text-xs text-ink/45">
-                            Round 2 access is granted automatically when you mark Round 1 completed (passed).
+                            Round 2 access is granted automatically when you mark Round 1 completed (passed), or when
+                            you press Selected.
+                          </p>
+                        )}
+                        {selected && !round1Done && (
+                          <p className="mt-2 text-xs text-emerald-700">
+                            Round 2 access was granted by the Selected decision.
                           </p>
                         )}
                         {round1Done && !round2Unlocked && (
@@ -590,12 +637,12 @@ export default function AdminDashboard() {
                             Boss Round · {application.bossCompletedAt ? 'completed' : application.bossRequestedAt ? 'requested' : 'not started'}
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {bothRoundsDone && !application.bossRequestedAt && (
+                            {bothRoundsDone && !application.bossRequestedAt && !application.bossCompletedAt && (
                               <button disabled={busy} onClick={() => requestBoss(application)} className="bg-ink px-3 py-2 text-xs text-white hover:bg-zara">
                                 Record Boss Round request
                               </button>
                             )}
-                            {application.bossRequestedAt && !application.bossCompletedAt && (
+                            {bothRoundsDone && !application.bossCompletedAt && (
                               <button disabled={busy} onClick={() => setBossCompleted(application, true)} className="inline-flex items-center gap-1 border border-ink/25 bg-white px-3 py-2 text-xs hover:border-emerald-600 hover:text-emerald-700">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Mark Boss Round completed
                               </button>
@@ -612,20 +659,25 @@ export default function AdminDashboard() {
                       <div className="mt-3 border border-ink/15 bg-white p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-semibold">
-                            Hiring decision · {statusLabel(application.status)}
+                            Hiring decision · {decisionLabel(application)}
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {!rejected && (
+                            {!rejected && !approved && (
                               <button disabled={busy} onClick={() => decide(application, 'selected')} className="inline-flex items-center gap-1 bg-emerald-700 px-3 py-2 text-xs text-white hover:bg-emerald-800">
                                 <UserCheck className="h-3.5 w-3.5" /> Selected
                               </button>
                             )}
-                            {!rejected && application.status !== 'approved' && (
+                            {selected && !approved && !rejected && (
+                              <button disabled={busy} onClick={() => undoSelection(application)} className="inline-flex items-center gap-1 border border-ink/20 bg-white px-3 py-2 text-xs hover:border-amber-600 hover:text-amber-700">
+                                <Undo2 className="h-3.5 w-3.5" /> Undo selection
+                              </button>
+                            )}
+                            {!rejected && !approved && (
                               <button disabled={busy} onClick={() => decide(application, 'rejected')} className="inline-flex items-center gap-1 border border-red-300 bg-white px-3 py-2 text-xs text-red-700 hover:bg-red-50">
                                 <UserX className="h-3.5 w-3.5" /> Rejected
                               </button>
                             )}
-                            {application.status === 'approved' && (
+                            {approved && (
                               <span className="inline-flex items-center gap-1 border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> HIRED EMPLOYEE unlocked
                               </span>
@@ -637,10 +689,22 @@ export default function AdminDashboard() {
                             )}
                           </div>
                         </div>
-                        <p className="mt-2 text-xs leading-relaxed text-ink/50">
-                          Selected before Round 2 grants Round 2 access; selected after the Boss Round unlocks HIRED
-                          EMPLOYEE. Rejected starts the candidate's 2-month upskilling and reapply period.
-                        </p>
+
+                        {selected && !approved && !rejected && (
+                          <p className="mt-2 border border-emerald-200 bg-emerald-50 p-2 text-xs leading-relaxed text-emerald-900">
+                            <b>Selected.</b>{' '}
+                            {bothRoundsDone
+                              ? 'Waiting for the in-person Boss Round. Mark the Boss Round completed, then press Selected again to unlock HIRED EMPLOYEE.'
+                              : 'The candidate has been selected for Round 2, so Round 2 Zoom access is granted automatically. The Boss Round stays hidden until both virtual rounds are completed.'}
+                          </p>
+                        )}
+                        {!selected && !approved && !rejected && (
+                          <p className="mt-2 text-xs leading-relaxed text-ink/50">
+                            Press <b>Selected</b> to confirm this candidate. Before Round 2 it grants Round 2 access;
+                            after the Boss Round it unlocks HIRED EMPLOYEE. <b>Rejected</b> starts the candidate's
+                            2-month upskilling and reapply period.
+                          </p>
+                        )}
                         {rejected && application.reapplyAfter && (
                           <p className="mt-2 text-xs text-red-700">
                             Reapply eligible from <b>{reapplyDateLabel(application)}</b>

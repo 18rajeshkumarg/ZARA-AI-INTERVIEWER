@@ -21,6 +21,7 @@ import {
 import { Link } from 'react-router-dom'
 import {
   canReapply,
+  decisionLabel,
   formatIST,
   formatISTTime,
   formatInterviewDate,
@@ -278,8 +279,10 @@ export default function CandidateDashboard({
   const round1Done = application.round1.state === 'completed'
   const round2Done = application.round2.state === 'completed'
   const round2Decision = application.round2Decision
+  const selected = Boolean(application.selectedAt)
   // Passing Round 1 (confirmed by the hiring team) unlocks Round 2 automatically.
-  const round2Unlocked = round1Done && round2Decision !== 'rejected'
+  // A direct "Selected" decision from the hiring team grants the same access.
+  const round2Unlocked = round2Decision !== 'rejected' && (round1Done || selected)
   const round2Rejected = round2Decision === 'rejected'
   const showBossRound = round1Done && round2Done && !round2Rejected
   const approved = application.status === 'approved'
@@ -329,7 +332,7 @@ export default function CandidateDashboard({
                 </div>
               )}
               <div>
-                <p className="font-mono2 text-[10px] uppercase tracking-[0.18em] text-zara">{application.id} · {statusLabel(application.status)}</p>
+                <p className="font-mono2 text-[10px] uppercase tracking-[0.18em] text-zara">{application.id} · {decisionLabel(application)}</p>
                 <h1 className="mt-1 text-2xl font-black sm:text-3xl">{application.name}</h1>
                 <p className="text-sm text-ink/60">{application.role}</p>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink/55">
@@ -397,6 +400,22 @@ export default function CandidateDashboard({
             />
           </div>
         </section>
+
+        {selected && !approved && !rejected && (
+          <section className="mt-6 border border-emerald-300 bg-emerald-50 p-5 text-sm text-emerald-900">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5" />
+              <b>You have been selected.</b>
+            </div>
+            <p className="mt-1 text-emerald-900/75">
+              {round2Done
+                ? 'The hiring team selected you. The in-person Boss Round is the next step.'
+                : round1Done
+                  ? 'The hiring team selected you for Round 2. Your Round 2 Zoom access is ready.'
+                  : 'The hiring team selected you. Your interview schedule is confirmed.'}
+            </p>
+          </section>
+        )}
 
         {round2Rejected && (
           <section className="mt-6 border border-red-300 bg-red-50 p-5 text-sm text-red-900">
